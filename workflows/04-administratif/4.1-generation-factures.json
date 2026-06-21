@@ -15,6 +15,16 @@
       }
     },
     {
+      "id": "a1b2c3d4-0009-0009-0009-000000000010",
+      "name": "Vérifier signature Stripe",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [375, 300],
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst rawBody = $input.item.binary?.data\n  ? Buffer.from($input.item.binary.data, 'base64').toString('utf8')\n  : JSON.stringify($input.item.json);\nconst sig = $input.item.json.headers?.['stripe-signature'] || '';\nconst secret = process.env.STRIPE_WEBHOOK_SECRET || '';\n\nif (!secret) throw new Error('STRIPE_WEBHOOK_SECRET manquant');\nif (!sig) throw new Error('En-tête stripe-signature absent');\n\nconst parts = sig.split(',').reduce((acc, part) => {\n  const [k, v] = part.split('=');\n  acc[k] = v;\n  return acc;\n}, {});\n\nconst timestamp = parts['t'];\nconst v1 = parts['v1'];\nif (!timestamp || !v1) throw new Error('Signature Stripe malformée');\n\nconst tolerance = 300; // 5 minutes\nif (Math.abs(Date.now() / 1000 - Number(timestamp)) > tolerance)\n  throw new Error('Timestamp Stripe trop ancien (replay attack)');\n\nconst signedPayload = `${timestamp}.${rawBody}`;\nconst expected = crypto\n  .createHmac('sha256', secret)\n  .update(signedPayload, 'utf8')\n  .digest('hex');\n\nif (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1)))\n  throw new Error('Signature Stripe invalide');\n\nreturn $input.item.json;"
+      }
+    },
+    {
       "id": "a1b2c3d4-0009-0009-0009-000000000002",
       "name": "Événement payment_intent.succeeded ?",
       "type": "n8n-nodes-base.if",
@@ -42,7 +52,10 @@
       "position": [750, 200],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT c.*, d.id as devis_id, d.numero as devis_numero, d.montant_ht, d.montant_ttc\nFROM clients c\nJOIN devis d ON d.client_id = c.id\nWHERE c.email = '{{ $json.data.object.receipt_email }}'\n  AND d.statut = 'envoye'\nORDER BY d.created_at DESC\nLIMIT 1",
+        "query": "SELECT c.*, d.id as devis_id, d.numero as devis_numero, d.montant_ht, d.montant_ttc\nFROM clients c\nJOIN devis d ON d.client_id = c.id\nWHERE c.email = $1\n  AND d.statut = 'envoye'\nORDER BY d.created_at DESC\nLIMIT 1",
+        "additionalFields": {
+          "queryParams": "={{ [$json.data.object.receipt_email] }}"
+        },
         "options": {}
       }
     },
@@ -134,6 +147,9 @@
   ],
   "connections": {
     "Webhook Paiement reçu (Stripe)": {
+      "main": [[{ "node": "Vérifier signature Stripe", "type": "main", "index": 0 }]]
+    },
+    "Vérifier signature Stripe": {
       "main": [[{ "node": "Événement payment_intent.succeeded ?", "type": "main", "index": 0 }]]
     },
     "Événement payment_intent.succeeded ?": {

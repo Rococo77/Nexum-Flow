@@ -92,7 +92,10 @@
       "position": [1500, 300],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id FROM avis_clients WHERE client_id = '{{ $('Webhook Fin de prestation').item.json.client_id }}' AND date_reception IS NOT NULL",
+        "query": "SELECT id FROM avis_clients WHERE client_id = $1 AND date_reception IS NOT NULL",
+        "additionalFields": {
+          "queryParams": "={{ [$('Webhook Fin de prestation').item.json.client_id] }}"
+        },
         "options": {}
       }
     },

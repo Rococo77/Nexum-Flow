@@ -21,7 +21,10 @@
       "position": [500, 300],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id FROM emails_traites WHERE message_id = '{{ $json.id }}'",
+        "query": "SELECT id FROM emails_traites WHERE message_id = $1",
+        "additionalFields": {
+          "queryParams": "={{ [$json.id] }}"
+        },
         "options": {}
       }
     },
@@ -46,6 +49,16 @@
       }
     },
     {
+      "id": "a1b2c3d4-0012-0012-0012-000000000013",
+      "name": "Sanitiser contenu email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 200],
+      "parameters": {
+        "jsCode": "const email = $input.item.json;\n// Tronquer pour éviter les attaques par dépassement de contexte et prompt injection\nconst MAX_LEN = 3000;\nconst sanitize = (s) => (s || '').replace(/ignore (all |previous |above )/gi, '[filtré] ').substring(0, MAX_LEN);\nreturn {\n  id: email.id,\n  from: (email.from || '').substring(0, 200),\n  subject: sanitize(email.subject).substring(0, 200),\n  body: sanitize(email.text || email.snippet),\n  has_attachments: Array.isArray(email.attachments) && email.attachments.length > 0\n};"
+      }
+    },
+    {
       "id": "a1b2c3d4-0012-0012-0012-000000000004",
       "name": "Classifier avec IA",
       "type": "n8n-nodes-base.openAi",
@@ -62,7 +75,7 @@
             },
             {
               "role": "user",
-              "content": "Expéditeur: {{ $('Gmail Trigger – Nouveaux emails').item.json.from }}\nSujet: {{ $('Gmail Trigger – Nouveaux emails').item.json.subject }}\nContenu: {{ $('Gmail Trigger – Nouveaux emails').item.json.text || $('Gmail Trigger – Nouveaux emails').item.json.snippet }}"
+              "content": "Expéditeur: {{ $('Sanitiser contenu email').item.json.from }}\nSujet: {{ $('Sanitiser contenu email').item.json.subject }}\nContenu: {{ $('Sanitiser contenu email').item.json.body }}"
             }
           ]
         },
@@ -190,9 +203,12 @@
     },
     "Email nouveau ?": {
       "main": [
-        [{ "node": "Classifier avec IA", "type": "main", "index": 0 }],
+        [{ "node": "Sanitiser contenu email", "type": "main", "index": 0 }],
         []
       ]
+    },
+    "Sanitiser contenu email": {
+      "main": [[{ "node": "Classifier avec IA", "type": "main", "index": 0 }]]
     },
     "Classifier avec IA": {
       "main": [[{ "node": "Parser classification", "type": "main", "index": 0 }]]

@@ -63,7 +63,10 @@
       "position": [1000, 200],
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE rendez_vous SET google_event_id = '{{ $json.id }}' WHERE id = '{{ $('Enregistrer RDV en base').item.json.id }}'",
+        "query": "UPDATE rendez_vous SET google_event_id = $1 WHERE id = $2",
+        "additionalFields": {
+          "queryParams": "={{ [$json.id, $('Enregistrer RDV en base').item.json.id] }}"
+        },
         "options": {}
       }
     },

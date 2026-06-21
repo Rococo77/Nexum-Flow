@@ -69,6 +69,16 @@
       }
     },
     {
+      "id": "a1b2c3d4-0008-0008-0008-000000000010",
+      "name": "Valider paramètres confirmation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [375, 500],
+      "parameters": {
+        "jsCode": "const query = $input.item.json.query || {};\nconst email = (query.client || '').trim();\nconst creneau = (query.creneau || '').trim();\n\n// Validation email format\nconst emailRegex = /^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$/;\nif (!emailRegex.test(email)) throw new Error('Email de confirmation invalide');\n\n// Validation créneau : doit être une date ISO future\nconst dateRdv = new Date(creneau);\nif (isNaN(dateRdv.getTime())) throw new Error('Créneau invalide');\nif (dateRdv < new Date()) throw new Error('Créneau dans le passé');\nif (dateRdv > new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) throw new Error('Créneau trop éloigné');\n\nreturn { email_valide: email, creneau_valide: dateRdv.toISOString() };"
+      }
+    },
+    {
       "id": "a1b2c3d4-0008-0008-0008-000000000006",
       "name": "Créer RDV confirmé",
       "type": "n8n-nodes-base.googleCalendar",
@@ -77,10 +87,10 @@
       "parameters": {
         "operation": "create",
         "calendarId": "={{ $env.GOOGLE_CALENDAR_ID }}",
-        "start": "={{ $json.query.creneau }}",
-        "end": "={{ new Date(new Date($json.query.creneau).getTime() + 60*60*1000).toISOString() }}",
+        "start": "={{ $('Valider paramètres confirmation').item.json.creneau_valide }}",
+        "end": "={{ new Date(new Date($('Valider paramètres confirmation').item.json.creneau_valide).getTime() + 60*60*1000).toISOString() }}",
         "additionalFields": {
-          "summary": "RDV – {{ $json.query.client }}",
+          "summary": "RDV – {{ $('Valider paramètres confirmation').item.json.email_valide }}",
           "description": "Rendez-vous confirmé via le système de prise de RDV automatique"
         }
       }
@@ -93,7 +103,7 @@
       "position": [750, 500],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $('Webhook Confirmation RDV').item.json.query.client }}",
+        "toList": "={{ $('Valider paramètres confirmation').item.json.email_valide }}",
         "subject": "Rendez-vous confirmé",
         "emailType": "html",
         "message": "<html><body><p>Votre rendez-vous est confirmé pour le <strong>{{ new Date($('Webhook Confirmation RDV').item.json.query.creneau).toLocaleString('fr-FR') }}</strong>.</p><p>Un rappel vous sera envoyé la veille.</p><p>À bientôt !</p></body></html>"
@@ -125,6 +135,9 @@
       "main": [[{ "node": "Email propositions créneaux", "type": "main", "index": 0 }]]
     },
     "Webhook Confirmation RDV": {
+      "main": [[{ "node": "Valider paramètres confirmation", "type": "main", "index": 0 }]]
+    },
+    "Valider paramètres confirmation": {
       "main": [[{ "node": "Créer RDV confirmé", "type": "main", "index": 0 }]]
     },
     "Créer RDV confirmé": {

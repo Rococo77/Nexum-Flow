@@ -27,9 +27,24 @@ if [ ! -f "$DOCKER_DIR/.env" ]; then
   read -p "Appuyez sur Entrée quand le .env est configuré..."
 fi
 
-# Créer le fichier acme.json pour Traefik
+# Créer le fichier acme.json pour Traefik (permissions strictes)
 touch "$DOCKER_DIR/traefik/acme.json"
 chmod 600 "$DOCKER_DIR/traefik/acme.json"
+
+# Créer le fichier htpasswd pour le dashboard Traefik et MinIO
+if [ ! -f "$DOCKER_DIR/traefik/users.htpasswd" ]; then
+  if command -v htpasswd >/dev/null 2>&1; then
+    echo ""
+    echo "🔐 Création des identifiants du dashboard Traefik..."
+    read -rp "   Nom d'utilisateur dashboard : " DASH_USER
+    htpasswd -c "$DOCKER_DIR/traefik/users.htpasswd" "$DASH_USER"
+    echo "✅ Fichier htpasswd créé"
+  else
+    echo "⚠️  htpasswd non disponible. Installez apache2-utils puis lancez :"
+    echo "   htpasswd -c $DOCKER_DIR/traefik/users.htpasswd admin"
+    touch "$DOCKER_DIR/traefik/users.htpasswd"
+  fi
+fi
 
 # Démarrer les services
 echo ""

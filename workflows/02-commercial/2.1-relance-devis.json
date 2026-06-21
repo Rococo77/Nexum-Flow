@@ -101,7 +101,10 @@
       "position": [1500, 200],
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE devis SET nb_relances = nb_relances + 1, derniere_relance = NOW() WHERE id = '{{ $json.id }}'",
+        "query": "UPDATE devis SET nb_relances = nb_relances + 1, derniere_relance = NOW() WHERE id = $1",
+        "additionalFields": {
+          "queryParams": "={{ [$json.id] }}"
+        },
         "options": {}
       }
     },

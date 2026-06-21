@@ -22,7 +22,10 @@
       "position": [500, 300],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT c.nom, c.entreprise, c.secteur_activite\nFROM clients c\nWHERE c.id = '{{ $json.client_id }}'",
+        "query": "SELECT c.nom, c.entreprise, c.secteur_activite FROM clients c WHERE c.id = $1",
+        "additionalFields": {
+          "queryParams": "={{ [$json.client_id] }}"
+        },
         "options": {}
       }
     },

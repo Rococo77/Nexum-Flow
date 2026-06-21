@@ -1,0 +1,25 @@
+# Nexum Flow – Fichiers à ne jamais committer
+.env
+docker/.env
+*.env.local
+
+# Certificats et secrets Traefik
+docker/traefik/acme.json
+docker/traefik/users.htpasswd
+
+# Logs
+*.log
+logs/
+
+# Données Docker persistantes (si montées localement)
+data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo

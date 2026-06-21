@@ -1,6 +1,7 @@
 api:
   dashboard: true
   insecure: false
+  # Dashboard accessible uniquement via le routeur Traefik avec middleware auth (cf. labels dans docker-compose)
 
 entryPoints:
   web:
@@ -31,3 +32,22 @@ log:
   level: INFO
 
 accessLog: {}
+
+# Rate limiting global (middleware à référencer dans les labels Docker)
+http:
+  middlewares:
+    dashboard-auth:
+      basicAuth:
+        usersFile: /etc/traefik/users.htpasswd
+    webhook-ratelimit:
+      rateLimit:
+        average: 30
+        burst: 10
+        period: 1m
+    security-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: strict-origin-when-cross-origin

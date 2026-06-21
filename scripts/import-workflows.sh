@@ -27,7 +27,8 @@ FAIL=0
 import_workflow() {
   local file="$1"
   local name
-  name=$(python3 -c "import json,sys; d=json.load(open('$file')); print(d.get('name','?'))" 2>/dev/null || echo "$file")
+  # Utilise python3 avec stdin pour éviter l'injection via le nom de fichier
+  name=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('name','?'))" < "$file" 2>/dev/null || echo "$file")
 
   response=$(curl -s -w "\n%{http_code}" \
     -X POST "$N8N_URL/api/v1/workflows" \

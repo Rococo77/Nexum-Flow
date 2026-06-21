@@ -40,7 +40,7 @@
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "chemin", "value": "Clients/{{ $json.entreprise || $json.nom }}" },
+            { "name": "chemin", "value": "={{ 'Clients/' + ($json.entreprise || $json.nom).replace(/[^a-zA-Z0-9À-ÿ_\\- ]/g, '_').replace(/\\.\\./g, '_').substring(0, 100) }}" },
             { "name": "client_id", "value": "={{ $json.id }}" }
           ]
         }
@@ -53,7 +53,7 @@
       "typeVersion": 2,
       "position": [1000, 200],
       "parameters": {
-        "jsCode": "const clientNom = $('Enregistrer client en base').item.json.entreprise || $('Enregistrer client en base').item.json.nom;\nconst clientId = $('Enregistrer client en base').item.json.id;\nconst sousDossiers = ['Contrats', 'Factures', 'Documents', 'Photos', 'Correspondances', 'Technique'];\nreturn sousDossiers.map(dossier => ({\n  chemin: `Clients/${clientNom}/${dossier}`,\n  client_id: clientId,\n  nom_dossier: dossier\n}));"
+        "jsCode": "const rawNom = $('Enregistrer client en base').item.json.entreprise || $('Enregistrer client en base').item.json.nom || 'client';\nconst clientNom = rawNom.replace(/[^a-zA-Z0-9À-ÿ_\\- ]/g, '_').replace(/\\.\\./g, '_').substring(0, 100);\nconst clientId = $('Enregistrer client en base').item.json.id;\nconst sousDossiers = ['Contrats', 'Factures', 'Documents', 'Photos', 'Correspondances', 'Technique'];\nreturn sousDossiers.map(dossier => ({\n  chemin: `Clients/${clientNom}/${dossier}`,\n  client_id: clientId,\n  nom_dossier: dossier\n}));"
       }
     },
     {
@@ -95,7 +95,10 @@
       "position": [1500, 300],
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE clients SET dossier_path = 'Clients/{{ $('Enregistrer client en base').item.json.entreprise }}' WHERE id = '{{ $('Enregistrer client en base').item.json.id }}'",
+        "query": "UPDATE clients SET dossier_path = $1 WHERE id = $2",
+        "additionalFields": {
+          "queryParams": "={{ ['Clients/' + $('Enregistrer client en base').item.json.entreprise.replace(/[^a-zA-Z0-9_\\- ]/g, '_'), $('Enregistrer client en base').item.json.id] }}"
+        },
         "options": {}
       }
     },

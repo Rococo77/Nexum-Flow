@@ -12,6 +12,14 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/traefik.yml:ro
       - ./traefik/acme.json:/acme.json
+      - ./traefik/users.htpasswd:/etc/traefik/users.htpasswd:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.${N8N_HOST#n8n.}`)"
+      - "traefik.http.routers.dashboard.tls=true"
+      - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.middlewares=dashboard-auth@file"
     networks:
       - nexum-network
 
@@ -56,7 +64,15 @@ services:
       - "traefik.http.routers.n8n.rule=Host(`${N8N_HOST}`)"
       - "traefik.http.routers.n8n.tls=true"
       - "traefik.http.routers.n8n.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.n8n.middlewares=security-headers@file"
       - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+      # Rate limiting sur les webhooks publics uniquement
+      - "traefik.http.routers.n8n-webhooks.rule=Host(`${N8N_HOST}`) && PathPrefix(`/webhook/`)"
+      - "traefik.http.routers.n8n-webhooks.tls=true"
+      - "traefik.http.routers.n8n-webhooks.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.n8n-webhooks.middlewares=webhook-ratelimit@file,security-headers@file"
+      - "traefik.http.routers.n8n-webhooks.service=n8n-svc"
+      - "traefik.http.services.n8n-svc.loadbalancer.server.port=5678"
     networks:
       - nexum-network
 
@@ -127,13 +143,17 @@ services:
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      # Désactiver l'accès anonyme aux buckets
+      - MINIO_BROWSER=on
     volumes:
       - minio_data:/data
     labels:
       - "traefik.enable=true"
+      # Console MinIO uniquement (port 9001) — l'API S3 (9000) reste interne
       - "traefik.http.routers.minio.rule=Host(`${MINIO_HOST}`)"
       - "traefik.http.routers.minio.tls=true"
       - "traefik.http.routers.minio.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.minio.middlewares=dashboard-auth@file,security-headers@file"
       - "traefik.http.services.minio.loadbalancer.server.port=9001"
     networks:
       - nexum-network

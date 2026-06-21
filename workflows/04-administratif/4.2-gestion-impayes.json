@@ -103,7 +103,10 @@
       "position": [1500, 300],
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE factures SET nb_relances = nb_relances + 1, derniere_relance = NOW(), statut = 'en_retard' WHERE id = '{{ $json.id }}'",
+        "query": "UPDATE factures SET nb_relances = nb_relances + 1, derniere_relance = NOW(), statut = 'en_retard' WHERE id = $1",
+        "additionalFields": {
+          "queryParams": "={{ [$json.id] }}"
+        },
         "options": {}
       }
     }
