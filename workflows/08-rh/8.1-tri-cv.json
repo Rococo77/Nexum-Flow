@@ -1,0 +1,149 @@
+{
+  "name": "8.1 – Tri et scoring IA des CV",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0020-0020-0020-000000000001",
+      "name": "Gmail Trigger – CV reçus",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "pollTimes": { "item": [{ "mode": "everyHour" }] },
+        "filters": {
+          "labelIds": ["INBOX"],
+          "q": "subject:(candidature OR CV OR recrutement OR poste)"
+        },
+        "options": { "downloadAttachments": true }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0020-0020-0020-000000000002",
+      "name": "Extraire texte du CV",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_HOST }}/api/v1/documents/extract-text",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [{ "name": "file", "value": "={{ $json.attachments[0] }}" }]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0020-0020-0020-000000000003",
+      "name": "Analyser CV avec IA",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [750, 300],
+      "parameters": {
+        "operation": "message",
+        "modelId": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es DRH expert pour une agence de développement web et automatisation. Analyse ce CV et génère un JSON:\n{\n  \"prenom_nom\": \"string\",\n  \"email\": \"string\",\n  \"telephone\": \"string\",\n  \"poste_vise\": \"string\",\n  \"experience_annees\": number,\n  \"competences_techniques\": [\"string\"],\n  \"competences_n8n\": boolean,\n  \"competences_ia\": boolean,\n  \"niveau_global\": \"junior\" | \"confirmé\" | \"senior\" | \"expert\",\n  \"score_adequation\": number (0-100),\n  \"points_forts\": [\"string\"],\n  \"points_faibles\": [\"string\"],\n  \"recommandation\": \"retenir\" | \"liste_attente\" | \"refuser\",\n  \"raison_decision\": \"string\",\n  \"questions_entretien\": [\"string\"]\n}"
+            },
+            {
+              "role": "user",
+              "content": "Email de candidature:\nDe: {{ $('Gmail Trigger – CV reçus').item.json.from }}\nSujet: {{ $('Gmail Trigger – CV reçus').item.json.subject }}\nMessage: {{ $('Gmail Trigger – CV reçus').item.json.text || $('Gmail Trigger – CV reçus').item.json.snippet }}\n\nContenu CV:\n{{ $json.text || 'CV non extractible' }}"
+            }
+          ]
+        },
+        "options": { "temperature": 0.2, "maxTokens": 1500 }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0020-0020-0020-000000000004",
+      "name": "Parser analyse CV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 300],
+      "parameters": {
+        "jsCode": "const content = $input.item.json.message.content;\nlet analyse;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  analyse = JSON.parse(match[0]);\n} catch(e) {\n  analyse = { prenom_nom: 'Inconnu', score_adequation: 0, recommandation: 'liste_attente', raison_decision: 'Analyse impossible' };\n}\nreturn {\n  ...analyse,\n  email_original: $('Gmail Trigger – CV reçus').item.json.from,\n  date_reception: new Date().toISOString()\n};"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0020-0020-0020-000000000005",
+      "name": "Décision RH",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1250, 300],
+      "parameters": {
+        "mode": "expression",
+        "output": "={{ $json.recommandation }}"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0020-0020-0020-000000000006",
+      "name": "Notifier RH – Profil à retenir",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1500, 100],
+      "parameters": {
+        "operation": "sendMessage",
+        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
+        "channelId": "={{ $env.DISCORD_RH_CHANNEL_ID }}",
+        "content": "✅ **CANDIDATURE À RETENIR** – Score {{ $json.score_adequation }}/100\n**Candidat :** {{ $json.prenom_nom }}\n**Poste :** {{ $json.poste_vise }}\n**Niveau :** {{ $json.niveau_global }} ({{ $json.experience_annees }} ans)\n**Compétences clés :** {{ $json.competences_techniques.slice(0, 5).join(', ') }}\n**n8n :** {{ $json.competences_n8n ? 'Oui ✅' : 'Non' }} | **IA :** {{ $json.competences_ia ? 'Oui ✅' : 'Non' }}\n📧 {{ $json.email_original }}\n**Raison :** {{ $json.raison_decision }}"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0020-0020-0020-000000000007",
+      "name": "Email réponse positive",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1750, 100],
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Gmail Trigger – CV reçus').item.json.id }}",
+        "emailType": "html",
+        "message": "<html><body><p>Bonjour {{ $json.prenom_nom }},</p><p>Merci pour votre candidature. Votre profil retient notre attention et nous souhaitons vous rencontrer.</p><p>Un membre de notre équipe vous contactera dans les prochains jours pour convenir d'un entretien.</p><p>Cordialement,<br>L'équipe RH Nexum Flow</p></body></html>"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0020-0020-0020-000000000008",
+      "name": "Email réponse négative",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1750, 400],
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Gmail Trigger – CV reçus').item.json.id }}",
+        "emailType": "html",
+        "message": "<html><body><p>Bonjour {{ $json.prenom_nom }},</p><p>Nous vous remercions de l'intérêt que vous portez à notre entreprise et du temps consacré à votre candidature.</p><p>Après étude de votre dossier, nous sommes au regret de vous informer que votre profil ne correspond pas aux critères recherchés pour ce poste.</p><p>Nous conservons votre CV et reviendrons vers vous si une opportunité correspondant à votre profil se présente.</p><p>Cordialement,<br>L'équipe RH Nexum Flow</p></body></html>"
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger – CV reçus": {
+      "main": [[{ "node": "Extraire texte du CV", "type": "main", "index": 0 }]]
+    },
+    "Extraire texte du CV": {
+      "main": [[{ "node": "Analyser CV avec IA", "type": "main", "index": 0 }]]
+    },
+    "Analyser CV avec IA": {
+      "main": [[{ "node": "Parser analyse CV", "type": "main", "index": 0 }]]
+    },
+    "Parser analyse CV": {
+      "main": [[{ "node": "Décision RH", "type": "main", "index": 0 }]]
+    },
+    "Décision RH": {
+      "main": [
+        [{ "node": "Notifier RH – Profil à retenir", "type": "main", "index": 0 }],
+        [],
+        [{ "node": "Email réponse négative", "type": "main", "index": 0 }]
+      ]
+    },
+    "Notifier RH – Profil à retenir": {
+      "main": [[{ "node": "Email réponse positive", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "versionId": "a1b2c3d4-0020-0020-0020-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "id": "nexum-wf-08-01",
+  "tags": [{ "id": "tag-rh", "name": "rh" }, { "id": "tag-ia", "name": "ia" }]
+}

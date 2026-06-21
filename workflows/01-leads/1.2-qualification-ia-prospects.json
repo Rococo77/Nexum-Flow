@@ -1,0 +1,179 @@
+{
+  "name": "1.2 – Qualification IA des prospects",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0002-0002-0002-000000000001",
+      "name": "Nouveau lead (Postgres trigger)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "parameters": {
+        "operation": "select",
+        "schema": "public",
+        "table": "leads",
+        "returnAll": false,
+        "limit": 10,
+        "where": {
+          "values": [
+            { "column": "statut", "value": "nouveau" },
+            { "column": "score", "value": "0" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0002-0002-0002-000000000002",
+      "name": "Schedule – toutes les 15 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 150],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 15 }]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0002-0002-0002-000000000003",
+      "name": "Analyser avec OpenAI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [550, 300],
+      "parameters": {
+        "operation": "message",
+        "modelId": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es un expert en qualification de prospects pour une entreprise de développement web et d'automatisation. Analyse les données du prospect et retourne UNIQUEMENT un JSON valide avec ces champs:\n- type_client: 'PME' | 'TPE' | 'Grand compte' | 'Startup' | 'Particulier'\n- budget_estime: '< 1k€' | '1k-5k€' | '5k-20k€' | '> 20k€' | 'Inconnu'\n- priorite: 'haute' | 'normale' | 'faible'\n- probabilite_signature: nombre entre 0 et 100\n- score: nombre entre 0 et 100\n- points_forts: array de strings (max 3)\n- points_attention: array de strings (max 2)\n- action_recommandee: string court"
+            },
+            {
+              "role": "user",
+              "content": "Analyse ce prospect:\nNom: {{ $json.prenom }} {{ $json.nom }}\nEntreprise: {{ $json.entreprise }}\nEmail: {{ $json.email }}\nMessage: {{ $json.message }}\nSource: {{ $json.source }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 500
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0002-0002-0002-000000000004",
+      "name": "Parser réponse IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 300],
+      "parameters": {
+        "jsCode": "const aiResponse = $input.item.json.message.content;\nlet qualification;\ntry {\n  const jsonMatch = aiResponse.match(/\\{[\\s\\S]*\\}/);\n  qualification = JSON.parse(jsonMatch[0]);\n} catch(e) {\n  qualification = {\n    type_client: 'Inconnu',\n    budget_estime: 'Inconnu',\n    priorite: 'normale',\n    probabilite_signature: 30,\n    score: 30,\n    points_forts: [],\n    points_attention: ['Analyse impossible'],\n    action_recommandee: 'Contacter manuellement'\n  };\n}\nreturn {\n  lead_id: $('Nouveau lead (Postgres trigger)').item.json.id,\n  email: $('Nouveau lead (Postgres trigger)').item.json.email,\n  prenom: $('Nouveau lead (Postgres trigger)').item.json.prenom,\n  nom: $('Nouveau lead (Postgres trigger)').item.json.nom,\n  ...qualification\n};"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0002-0002-0002-000000000005",
+      "name": "Mettre à jour lead en base",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1050, 300],
+      "parameters": {
+        "operation": "update",
+        "schema": "public",
+        "table": "leads",
+        "updateKey": "id",
+        "columns": "type_client, budget_estime, priorite, probabilite_signature, score, statut",
+        "additionalFields": {
+          "statut": "qualifie"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0002-0002-0002-000000000006",
+      "name": "Priorité haute ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1300, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond-1",
+              "leftValue": "={{ $json.priorite }}",
+              "rightValue": "haute",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0002-0002-0002-000000000007",
+      "name": "Alerte Discord – Lead chaud",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1550, 200],
+      "parameters": {
+        "operation": "sendMessage",
+        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
+        "channelId": "={{ $env.DISCORD_LEADS_CHANNEL_ID }}",
+        "content": "🔥 **LEAD CHAUD** – À contacter en priorité !\n**{{ $json.prenom }} {{ $json.nom }}**\n> Type : {{ $json.type_client }}\n> Budget estimé : {{ $json.budget_estime }}\n> Probabilité signature : {{ $json.probabilite_signature }}%\n> Score : {{ $json.score }}/100\n> Action : {{ $json.action_recommandee }}"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0002-0002-0002-000000000008",
+      "name": "Attribuer commercial",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1550, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CRM_API_URL }}/leads/{{ $json.lead_id }}/assign",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "score", "value": "={{ $json.score }}" },
+            { "name": "priorite", "value": "={{ $json.priorite }}" },
+            { "name": "type_client", "value": "={{ $json.type_client }}" }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule – toutes les 15 min": {
+      "main": [[{ "node": "Nouveau lead (Postgres trigger)", "type": "main", "index": 0 }]]
+    },
+    "Nouveau lead (Postgres trigger)": {
+      "main": [[{ "node": "Analyser avec OpenAI", "type": "main", "index": 0 }]]
+    },
+    "Analyser avec OpenAI": {
+      "main": [[{ "node": "Parser réponse IA", "type": "main", "index": 0 }]]
+    },
+    "Parser réponse IA": {
+      "main": [[{ "node": "Mettre à jour lead en base", "type": "main", "index": 0 }]]
+    },
+    "Mettre à jour lead en base": {
+      "main": [[{ "node": "Priorité haute ?", "type": "main", "index": 0 }]]
+    },
+    "Priorité haute ?": {
+      "main": [
+        [{ "node": "Alerte Discord – Lead chaud", "type": "main", "index": 0 }],
+        [{ "node": "Attribuer commercial", "type": "main", "index": 0 }]
+      ]
+    },
+    "Alerte Discord – Lead chaud": {
+      "main": [[{ "node": "Attribuer commercial", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "versionId": "a1b2c3d4-0002-0002-0002-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "id": "nexum-wf-01-02",
+  "tags": [{ "id": "tag-leads", "name": "leads" }, { "id": "tag-ia", "name": "ia" }, { "id": "tag-p1", "name": "priorite-1" }]
+}

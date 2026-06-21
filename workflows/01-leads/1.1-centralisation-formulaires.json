@@ -1,0 +1,174 @@
+{
+  "name": "1.1 – Centralisation des formulaires leads",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000001",
+      "name": "Webhook Formulaire Site",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-formulaire",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000002",
+      "name": "Gmail – Nouveau lead email",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [250, 460],
+      "parameters": {
+        "pollTimes": {
+          "item": [{ "mode": "everyMinute" }]
+        },
+        "filters": {
+          "labelIds": ["INBOX"],
+          "q": "subject:(contact OR devis OR demande OR projet)"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000003",
+      "name": "Webhook WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 620],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000004",
+      "name": "Normaliser données lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 460],
+      "parameters": {
+        "jsCode": "const item = $input.item.json;\nconst source = $node.name.includes('Gmail') ? 'email'\n  : $node.name.includes('WhatsApp') ? 'whatsapp'\n  : 'formulaire';\n\nreturn {\n  source,\n  nom: item.nom || item.last_name || item.name?.split(' ')[1] || '',\n  prenom: item.prenom || item.first_name || item.name?.split(' ')[0] || '',\n  email: item.email || item.from || '',\n  telephone: item.telephone || item.phone || '',\n  entreprise: item.entreprise || item.company || '',\n  message: item.message || item.body || item.text || '',\n  date_reception: new Date().toISOString()\n};"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000005",
+      "name": "Enregistrer en base",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [750, 460],
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "leads",
+        "columns": "source, nom, prenom, email, telephone, entreprise, message",
+        "options": {
+          "returnFields": "id, email, nom"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000006",
+      "name": "Notifier Discord",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1000, 360],
+      "parameters": {
+        "operation": "sendMessage",
+        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
+        "channelId": "={{ $env.DISCORD_LEADS_CHANNEL_ID }}",
+        "content": "🎯 **Nouveau lead** depuis {{ $json.source }}\n**Nom :** {{ $json.prenom }} {{ $json.nom }}\n**Email :** {{ $json.email }}\n**Téléphone :** {{ $json.telephone }}\n**Entreprise :** {{ $json.entreprise }}\n**Message :** {{ $json.message }}"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000007",
+      "name": "Email de confirmation",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1000, 520],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $json.email }}",
+        "subject": "Nous avons bien reçu votre message – Nexum Flow",
+        "emailType": "html",
+        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Nous avons bien reçu votre demande et nous vous recontacterons dans les plus brefs délais.</p><p>À très bientôt,<br>L'équipe Nexum Flow</p></body></html>"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000008",
+      "name": "Créer dans CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 680],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CRM_API_URL }}/contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "headers": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{ $env.CRM_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "body": {
+          "mode": "json",
+          "jsonParameters": false,
+          "parametersJson": "={{ JSON.stringify({ firstName: $json.prenom, lastName: $json.nom, email: $json.email, phone: $json.telephone, company: $json.entreprise, source: $json.source, notes: $json.message }) }}"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0001-0001-0001-000000000009",
+      "name": "Réponse Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseData": "={{ JSON.stringify({ success: true, message: 'Lead enregistré avec succès' }) }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Formulaire Site": {
+      "main": [[{ "node": "Normaliser données lead", "type": "main", "index": 0 }]]
+    },
+    "Gmail – Nouveau lead email": {
+      "main": [[{ "node": "Normaliser données lead", "type": "main", "index": 0 }]]
+    },
+    "Webhook WhatsApp": {
+      "main": [[{ "node": "Normaliser données lead", "type": "main", "index": 0 }]]
+    },
+    "Normaliser données lead": {
+      "main": [[{ "node": "Enregistrer en base", "type": "main", "index": 0 }]]
+    },
+    "Enregistrer en base": {
+      "main": [
+        [
+          { "node": "Notifier Discord", "type": "main", "index": 0 },
+          { "node": "Email de confirmation", "type": "main", "index": 0 },
+          { "node": "Créer dans CRM", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Notifier Discord": {
+      "main": [[{ "node": "Réponse Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "a1b2c3d4-0001-0001-0001-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "id": "nexum-wf-01-01",
+  "tags": [{ "id": "tag-leads", "name": "leads" }, { "id": "tag-p1", "name": "priorite-1" }]
+}

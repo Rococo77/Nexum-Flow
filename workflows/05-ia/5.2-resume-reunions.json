@@ -1,0 +1,166 @@
+{
+  "name": "5.2 – Résumé IA de réunions (transcription + compte-rendu)",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0013-0013-0013-000000000001",
+      "name": "Webhook Upload Audio",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "transcription-reunion",
+        "responseMode": "responseNode",
+        "options": { "binaryData": true }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0013-0013-0013-000000000002",
+      "name": "Transcrire avec Whisper",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "parameters": {
+        "operation": "audio",
+        "resource": "audio",
+        "binaryPropertyName": "data",
+        "options": {
+          "language": "fr",
+          "response_format": "text"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0013-0013-0013-000000000003",
+      "name": "Générer compte-rendu structuré",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [750, 300],
+      "parameters": {
+        "operation": "message",
+        "modelId": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es expert en rédaction de comptes-rendus de réunion. À partir de la transcription, génère un CR structuré en markdown avec:\n# Compte-rendu de réunion\n## Informations\n- Date, participants mentionnés, durée estimée\n## Résumé exécutif (3-5 phrases)\n## Points abordés\n## Décisions prises\n## Actions à mener\n| Action | Responsable | Deadline |\n|--------|-------------|----------|\n## Prochaines étapes"
+            },
+            {
+              "role": "user",
+              "content": "Contexte: {{ $('Webhook Upload Audio').item.json.body?.contexte || 'Réunion interne' }}\nParticipants: {{ $('Webhook Upload Audio').item.json.body?.participants || 'Non précisés' }}\n\nTranscription:\n{{ $json.text || $json }}"
+            }
+          ]
+        },
+        "options": { "temperature": 0.3, "maxTokens": 2500 }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0013-0013-0013-000000000004",
+      "name": "Générer PDF compte-rendu",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_HOST }}/api/v1/documents/markdown-to-pdf",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "content", "value": "={{ $json.message.content }}" },
+            { "name": "titre", "value": "CR Réunion – {{ new Date().toLocaleDateString('fr-FR') }}" }
+          ]
+        },
+        "options": { "response": { "response": { "responseFormat": "file" } } }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0013-0013-0013-000000000005",
+      "name": "Archiver dans MinIO",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_HOST }}/api/v1/storage/upload",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chemin", "value": "Reunions/CR_{{ new Date().toISOString().split('T')[0] }}_{{ Date.now() }}.pdf" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0013-0013-0013-000000000006",
+      "name": "Envoyer CR par email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1250, 400],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $('Webhook Upload Audio').item.json.body?.email_destinataires || $env.SMTP_USER }}",
+        "subject": "Compte-rendu de réunion – {{ new Date().toLocaleDateString('fr-FR') }}",
+        "emailType": "html",
+        "message": "<html><body><h2>Compte-rendu de réunion</h2><p>Veuillez trouver ci-joint le compte-rendu généré automatiquement.</p><hr><div style='font-family:monospace;white-space:pre-wrap'>{{ $('Générer compte-rendu structuré').item.json.message.content }}</div></body></html>",
+        "attachmentsUi": { "attachmentsBinary": [{ "property": "data" }] }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0013-0013-0013-000000000007",
+      "name": "Partager sur Discord",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1500, 300],
+      "parameters": {
+        "operation": "sendMessage",
+        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
+        "channelId": "={{ $env.DISCORD_REUNIONS_CHANNEL_ID }}",
+        "content": "📋 **Nouveau compte-rendu de réunion** – {{ new Date().toLocaleDateString('fr-FR') }}\n\n{{ $('Générer compte-rendu structuré').item.json.message.content.substring(0, 1500) }}..."
+      }
+    },
+    {
+      "id": "a1b2c3d4-0013-0013-0013-000000000008",
+      "name": "Réponse succès",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1750, 300],
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseData": "={{ JSON.stringify({ success: true, compte_rendu: $('Générer compte-rendu structuré').item.json.message.content }) }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Upload Audio": {
+      "main": [[{ "node": "Transcrire avec Whisper", "type": "main", "index": 0 }]]
+    },
+    "Transcrire avec Whisper": {
+      "main": [[{ "node": "Générer compte-rendu structuré", "type": "main", "index": 0 }]]
+    },
+    "Générer compte-rendu structuré": {
+      "main": [[{ "node": "Générer PDF compte-rendu", "type": "main", "index": 0 }]]
+    },
+    "Générer PDF compte-rendu": {
+      "main": [
+        [
+          { "node": "Archiver dans MinIO", "type": "main", "index": 0 },
+          { "node": "Envoyer CR par email", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Envoyer CR par email": {
+      "main": [[{ "node": "Partager sur Discord", "type": "main", "index": 0 }]]
+    },
+    "Partager sur Discord": {
+      "main": [[{ "node": "Réponse succès", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "versionId": "a1b2c3d4-0013-0013-0013-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "id": "nexum-wf-05-02",
+  "tags": [{ "id": "tag-ia", "name": "ia" }, { "id": "tag-p2", "name": "priorite-2" }]
+}

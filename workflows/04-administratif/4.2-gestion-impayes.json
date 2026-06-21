@@ -1,0 +1,147 @@
+{
+  "name": "4.2 – Gestion des impayés",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0010-0010-0010-000000000001",
+      "name": "Schedule – chaque matin 9h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 9 * * 1-5" }] }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0010-0010-0010-000000000002",
+      "name": "Récupérer factures impayées",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [500, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT f.*, c.email, c.prenom, c.nom, c.entreprise, c.telephone\nFROM factures f\nJOIN clients c ON f.client_id = c.id\nWHERE f.statut IN ('en_attente', 'en_retard')\n  AND f.date_echeance < NOW()\n  AND f.nb_relances < 3\nORDER BY f.date_echeance ASC",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0010-0010-0010-000000000003",
+      "name": "Des impayés ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [750, 300],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "cond-1",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0010-0010-0010-000000000004",
+      "name": "Quelle relance ?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1000, 200],
+      "parameters": {
+        "mode": "expression",
+        "output": "={{ $json.nb_relances }}"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0010-0010-0010-000000000005",
+      "name": "Relance 1 – Rappel courtois",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1250, 100],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $json.email }}",
+        "subject": "Rappel règlement – Facture n°{{ $json.numero }}",
+        "emailType": "html",
+        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Sauf erreur de notre part, la facture n°<strong>{{ $json.numero }}</strong> d'un montant de <strong>{{ $json.montant_ttc }}€ TTC</strong> est arrivée à échéance le {{ new Date($json.date_echeance).toLocaleDateString('fr-FR') }}.</p><p>Pourriez-vous procéder au règlement ? En cas de difficulté, n'hésitez pas à nous contacter.</p><p>Cordialement,<br>L'équipe Nexum Flow</p></body></html>"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0010-0010-0010-000000000006",
+      "name": "Relance 2 – Mise en demeure douce",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1250, 280],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $json.email }}",
+        "subject": "URGENT – Facture n°{{ $json.numero }} en attente de règlement",
+        "emailType": "html",
+        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Malgré notre premier rappel, la facture n°<strong>{{ $json.numero }}</strong> ({{ $json.montant_ttc }}€ TTC) reste impayée à ce jour.</p><p>Nous vous demandons de bien vouloir procéder au règlement dans les <strong>48 heures</strong>. Sans retour de votre part, nous serons contraints de transmettre ce dossier à notre service contentieux.</p><p>Pour régler en ligne : <a href=\"https://{{ $env.N8N_HOST }}/paiement/{{ $json.id }}\">Cliquer ici</a></p></body></html>"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0010-0010-0010-000000000007",
+      "name": "Relance 3 – Notification dirigeant",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1250, 460],
+      "parameters": {
+        "operation": "sendMessage",
+        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
+        "channelId": "={{ $env.DISCORD_ADMIN_CHANNEL_ID }}",
+        "content": "🚨 **IMPAYÉ CRITIQUE** – Intervention manuelle requise\n**Client :** {{ $json.prenom }} {{ $json.nom }} ({{ $json.entreprise }})\n**Facture :** n°{{ $json.numero }} – {{ $json.montant_ttc }}€ TTC\n**Échéance :** {{ new Date($json.date_echeance).toLocaleDateString('fr-FR') }}\n**Retard :** {{ Math.floor((Date.now() - new Date($json.date_echeance).getTime()) / (1000*60*60*24)) }} jours\n⚠️ Considérer mise en demeure formelle ou huissier"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0010-0010-0010-000000000008",
+      "name": "Mettre à jour statut et compteur",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1500, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE factures SET nb_relances = nb_relances + 1, derniere_relance = NOW(), statut = 'en_retard' WHERE id = '{{ $json.id }}'",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Schedule – chaque matin 9h": {
+      "main": [[{ "node": "Récupérer factures impayées", "type": "main", "index": 0 }]]
+    },
+    "Récupérer factures impayées": {
+      "main": [[{ "node": "Des impayés ?", "type": "main", "index": 0 }]]
+    },
+    "Des impayés ?": {
+      "main": [
+        [{ "node": "Quelle relance ?", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Quelle relance ?": {
+      "main": [
+        [{ "node": "Relance 1 – Rappel courtois", "type": "main", "index": 0 }],
+        [{ "node": "Relance 2 – Mise en demeure douce", "type": "main", "index": 0 }],
+        [{ "node": "Relance 3 – Notification dirigeant", "type": "main", "index": 0 }]
+      ]
+    },
+    "Relance 1 – Rappel courtois": {
+      "main": [[{ "node": "Mettre à jour statut et compteur", "type": "main", "index": 0 }]]
+    },
+    "Relance 2 – Mise en demeure douce": {
+      "main": [[{ "node": "Mettre à jour statut et compteur", "type": "main", "index": 0 }]]
+    },
+    "Relance 3 – Notification dirigeant": {
+      "main": [[{ "node": "Mettre à jour statut et compteur", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "versionId": "a1b2c3d4-0010-0010-0010-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "id": "nexum-wf-04-02",
+  "tags": [{ "id": "tag-admin", "name": "administratif" }, { "id": "tag-p1", "name": "priorite-1" }]
+}

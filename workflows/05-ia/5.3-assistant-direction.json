@@ -1,0 +1,149 @@
+{
+  "name": "5.3 – Assistant de direction (rapport quotidien)",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0014-0014-0014-000000000001",
+      "name": "Schedule – 7h du matin en semaine",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 7 * * 1-5" }] }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0014-0014-0014-000000000002",
+      "name": "Récupérer KPIs du jour",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [500, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  -- Leads\n  (SELECT COUNT(*) FROM leads WHERE created_at >= CURRENT_DATE - INTERVAL '1 day') as nouveaux_leads_hier,\n  (SELECT COUNT(*) FROM leads WHERE statut = 'qualifie') as leads_qualifies_total,\n  -- Devis\n  (SELECT COUNT(*) FROM devis WHERE date_envoi >= CURRENT_DATE - INTERVAL '7 days') as devis_semaine,\n  (SELECT COALESCE(SUM(montant_ttc), 0) FROM devis WHERE statut = 'envoye') as pipeline_devis,\n  -- Factures\n  (SELECT COALESCE(SUM(montant_ttc), 0) FROM factures WHERE statut = 'payee' AND EXTRACT(MONTH FROM date_paiement) = EXTRACT(MONTH FROM NOW())) as ca_mois,\n  (SELECT COALESCE(SUM(montant_ttc), 0) FROM factures WHERE statut IN ('en_attente', 'en_retard')) as impayes_total,\n  (SELECT COUNT(*) FROM factures WHERE statut = 'en_retard') as factures_retard,\n  -- RDV\n  (SELECT COUNT(*) FROM rendez_vous WHERE date_debut::date = CURRENT_DATE) as rdv_aujourd_hui,\n  (SELECT COUNT(*) FROM rendez_vous WHERE date_debut >= NOW() AND date_debut < NOW() + INTERVAL '7 days') as rdv_semaine,\n  -- Clients\n  (SELECT COUNT(*) FROM clients WHERE statut = 'actif') as clients_actifs",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0014-0014-0014-000000000003",
+      "name": "Récupérer RDV du jour",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [500, 460],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT rv.titre, rv.date_debut, rv.lieu, c.nom, c.prenom, c.entreprise\nFROM rendez_vous rv\nJOIN clients c ON rv.client_id = c.id\nWHERE rv.date_debut::date = CURRENT_DATE\nORDER BY rv.date_debut",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0014-0014-0014-000000000004",
+      "name": "Récupérer leads chauds",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [500, 620],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT prenom, nom, entreprise, score, probabilite_signature, action_recommandee\nFROM leads\nWHERE priorite = 'haute' AND statut NOT IN ('perdu', 'signe')\nORDER BY score DESC\nLIMIT 5",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0014-0014-0014-000000000005",
+      "name": "Analyser et rédiger rapport IA",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [850, 420],
+      "parameters": {
+        "operation": "message",
+        "modelId": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es l'assistant de direction d'une entreprise de développement web. Rédige un briefing matinal concis et actionnable. Commence par une phrase d'accroche sur la situation du jour. Sois direct, chiffré, et donne 3 priorités concrètes pour la journée. Utilise des emojis pour les titres."
+            },
+            {
+              "role": "user",
+              "content": "KPIs:\n{{ JSON.stringify($('Récupérer KPIs du jour').item.json, null, 2) }}\n\nRDV aujourd'hui:\n{{ JSON.stringify($('Récupérer RDV du jour').all().map(i => i.json), null, 2) }}\n\nLeads chauds:\n{{ JSON.stringify($('Récupérer leads chauds').all().map(i => i.json), null, 2) }}"
+            }
+          ]
+        },
+        "options": { "temperature": 0.5, "maxTokens": 1500 }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0014-0014-0014-000000000006",
+      "name": "Construire rapport complet",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 420],
+      "parameters": {
+        "jsCode": "const kpis = $('Récupérer KPIs du jour').item.json;\nconst rdvs = $('Récupérer RDV du jour').all().map(i => i.json);\nconst leadsChauds = $('Récupérer leads chauds').all().map(i => i.json);\nconst analyseIA = $input.item.json.message.content;\nconst date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });\n\nconst rdvList = rdvs.length > 0\n  ? rdvs.map(r => `  • ${new Date(r.date_debut).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})} – ${r.titre} (${r.prenom} ${r.nom}, ${r.entreprise})`).join('\\n')\n  : '  Aucun RDV prévu aujourd\\'hui';\n\nconst leadsChaudsList = leadsChauds.length > 0\n  ? leadsChauds.map(l => `  • ${l.prenom} ${l.nom} (${l.entreprise}) – Score: ${l.score}/100`).join('\\n')\n  : '  Aucun lead chaud en ce moment';\n\nreturn {\n  date,\n  kpis,\n  rdvs,\n  leads_chauds: leadsChauds,\n  analyse_ia: analyseIA,\n  rapport_discord: `📊 **BRIEFING DIRECTION – ${date}**\\n\\n${analyseIA}\\n\\n📅 **RDV du jour (${rdvs.length}) :**\\n${rdvList}\\n\\n🔥 **Leads chauds :**\\n${leadsChaudsList}\\n\\n💰 **CA mois en cours :** ${Number(kpis.ca_mois || 0).toLocaleString('fr-FR')}€\\n⚡ **Pipeline devis :** ${Number(kpis.pipeline_devis || 0).toLocaleString('fr-FR')}€\\n⚠️ **Impayés :** ${Number(kpis.impayes_total || 0).toLocaleString('fr-FR')}€`\n};"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0014-0014-0014-000000000007",
+      "name": "Envoyer sur Discord",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1350, 300],
+      "parameters": {
+        "operation": "sendMessage",
+        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
+        "channelId": "={{ $env.DISCORD_DIRECTION_CHANNEL_ID }}",
+        "content": "={{ $json.rapport_discord }}"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0014-0014-0014-000000000008",
+      "name": "Email rapport dirigeant",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1350, 500],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $env.SMTP_USER }}",
+        "subject": "Briefing Direction – {{ $json.date }}",
+        "emailType": "html",
+        "message": "<html><body style='font-family:Arial;max-width:600px;margin:auto'><h2>Briefing Direction – {{ $json.date }}</h2><div style='background:#f8f9fa;padding:15px;border-radius:8px;margin:10px 0'><p>{{ $json.analyse_ia.replace(/\\n/g, '<br>') }}</p></div><h3>RDV du jour</h3><ul>{{ $json.rdvs.map(r => `<li>${new Date(r.date_debut).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})} – ${r.titre} (${r.entreprise})</li>`).join('') || '<li>Aucun</li>' }}</ul><h3>KPIs clés</h3><table style='width:100%;border-collapse:collapse'><tr><td style='padding:8px;border:1px solid #ddd'>CA mois</td><td style='padding:8px;border:1px solid #ddd;font-weight:bold'>{{ Number($json.kpis.ca_mois || 0).toLocaleString('fr-FR') }}€</td></tr><tr><td style='padding:8px;border:1px solid #ddd'>Pipeline</td><td style='padding:8px;border:1px solid #ddd'>{{ Number($json.kpis.pipeline_devis || 0).toLocaleString('fr-FR') }}€</td></tr><tr><td style='padding:8px;border:1px solid #ddd'>Impayés</td><td style='padding:8px;border:1px solid #ddd;color:red'>{{ Number($json.kpis.impayes_total || 0).toLocaleString('fr-FR') }}€</td></tr><tr><td style='padding:8px;border:1px solid #ddd'>Leads qualifiés</td><td style='padding:8px;border:1px solid #ddd'>{{ $json.kpis.leads_qualifies_total }}</td></tr></table></body></html>"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule – 7h du matin en semaine": {
+      "main": [
+        [
+          { "node": "Récupérer KPIs du jour", "type": "main", "index": 0 },
+          { "node": "Récupérer RDV du jour", "type": "main", "index": 0 },
+          { "node": "Récupérer leads chauds", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Récupérer KPIs du jour": {
+      "main": [[{ "node": "Analyser et rédiger rapport IA", "type": "main", "index": 0 }]]
+    },
+    "Récupérer RDV du jour": {
+      "main": [[{ "node": "Analyser et rédiger rapport IA", "type": "main", "index": 0 }]]
+    },
+    "Récupérer leads chauds": {
+      "main": [[{ "node": "Analyser et rédiger rapport IA", "type": "main", "index": 0 }]]
+    },
+    "Analyser et rédiger rapport IA": {
+      "main": [[{ "node": "Construire rapport complet", "type": "main", "index": 0 }]]
+    },
+    "Construire rapport complet": {
+      "main": [
+        [
+          { "node": "Envoyer sur Discord", "type": "main", "index": 0 },
+          { "node": "Email rapport dirigeant", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "versionId": "a1b2c3d4-0014-0014-0014-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "id": "nexum-wf-05-03",
+  "tags": [{ "id": "tag-ia", "name": "ia" }, { "id": "tag-p1", "name": "priorite-1" }]
+}

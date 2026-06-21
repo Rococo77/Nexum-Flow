@@ -1,0 +1,160 @@
+{
+  "name": "6.2 – Génération de contenu SEO automatique",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0016-0016-0016-000000000001",
+      "name": "Webhook Projet terminé",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "projet-termine",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0016-0016-0016-000000000002",
+      "name": "Récupérer infos projet",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [500, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT c.nom, c.entreprise, c.secteur_activite\nFROM clients c\nWHERE c.id = '{{ $json.client_id }}'",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0016-0016-0016-000000000003",
+      "name": "Générer article SEO avec IA",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [750, 300],
+      "parameters": {
+        "operation": "message",
+        "modelId": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es un expert SEO et rédacteur web spécialisé dans le développement web et l'automatisation. Génère un article de blog optimisé SEO en JSON:\n{\n  \"titre\": \"string (60 caractères max, inclut mot-clé principal)\",\n  \"meta_description\": \"string (155 caractères max)\",\n  \"slug\": \"string (kebab-case)\",\n  \"mots_cles\": [\"string\"],\n  \"contenu\": \"string (article complet en markdown, 800-1200 mots, structure H2/H3, paragraphes courts, CTA final)\",\n  \"extrait\": \"string (150 mots)\"\n}\nL'article doit valoriser le projet réalisé sans citer le client, et générer des leads pour des projets similaires."
+            },
+            {
+              "role": "user",
+              "content": "Génère un article SEO basé sur ce projet:\nType de prestation: {{ $('Webhook Projet terminé').item.json.type_prestation }}\nDescription: {{ $('Webhook Projet terminé').item.json.description }}\nTechnologies utilisées: {{ $('Webhook Projet terminé').item.json.technologies }}\nSecteur client: {{ $json[0]?.secteur_activite || 'Commerce' }}\nRésultats obtenus: {{ $('Webhook Projet terminé').item.json.resultats }}"
+            }
+          ]
+        },
+        "options": { "temperature": 0.6, "maxTokens": 3000 }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0016-0016-0016-000000000004",
+      "name": "Parser article JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 300],
+      "parameters": {
+        "jsCode": "const content = $input.item.json.message.content;\nlet article;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  article = JSON.parse(match[0]);\n} catch(e) {\n  article = {\n    titre: 'Nouveau projet web réalisé',\n    meta_description: 'Découvrez notre dernier projet de développement web.',\n    slug: 'projet-web-' + Date.now(),\n    mots_cles: ['développement web', 'automatisation'],\n    contenu: content,\n    extrait: content.substring(0, 300)\n  };\n}\nreturn {\n  ...article,\n  client_id: $('Webhook Projet terminé').item.json.client_id,\n  date_creation: new Date().toISOString()\n};"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0016-0016-0016-000000000005",
+      "name": "Enregistrer en base",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1250, 200],
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "articles_seo",
+        "columns": "client_id, titre, contenu, mots_cles, statut",
+        "additionalFields": { "statut": "brouillon" },
+        "options": { "returnFields": "id, titre" }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0016-0016-0016-000000000006",
+      "name": "Publier brouillon WordPress",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WORDPRESS_URL }}/wp-json/wp/v2/posts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "title", "value": "={{ $json.titre }}" },
+            { "name": "content", "value": "={{ $json.contenu }}" },
+            { "name": "excerpt", "value": "={{ $json.extrait }}" },
+            { "name": "slug", "value": "={{ $json.slug }}" },
+            { "name": "status", "value": "draft" },
+            { "name": "meta[_yoast_wpseo_metadesc]", "value": "={{ $json.meta_description }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0016-0016-0016-000000000007",
+      "name": "Notifier équipe",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1500, 300],
+      "parameters": {
+        "operation": "sendMessage",
+        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
+        "channelId": "={{ $env.DISCORD_MARKETING_CHANNEL_ID }}",
+        "content": "✍️ **Nouvel article SEO généré** – À valider avant publication\n**Titre :** {{ $('Parser article JSON').item.json.titre }}\n**Mots-clés :** {{ $('Parser article JSON').item.json.mots_cles.join(', ') }}\n**Statut :** Brouillon WordPress\n🔗 Revue dans WordPress avant publication"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0016-0016-0016-000000000008",
+      "name": "Réponse succès",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1750, 300],
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseData": "={{ JSON.stringify({ success: true, titre: $('Parser article JSON').item.json.titre }) }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Projet terminé": {
+      "main": [[{ "node": "Récupérer infos projet", "type": "main", "index": 0 }]]
+    },
+    "Récupérer infos projet": {
+      "main": [[{ "node": "Générer article SEO avec IA", "type": "main", "index": 0 }]]
+    },
+    "Générer article SEO avec IA": {
+      "main": [[{ "node": "Parser article JSON", "type": "main", "index": 0 }]]
+    },
+    "Parser article JSON": {
+      "main": [
+        [
+          { "node": "Enregistrer en base", "type": "main", "index": 0 },
+          { "node": "Publier brouillon WordPress", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Publier brouillon WordPress": {
+      "main": [[{ "node": "Notifier équipe", "type": "main", "index": 0 }]]
+    },
+    "Notifier équipe": {
+      "main": [[{ "node": "Réponse succès", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "versionId": "a1b2c3d4-0016-0016-0016-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "id": "nexum-wf-06-02",
+  "tags": [{ "id": "tag-marketing", "name": "marketing" }, { "id": "tag-ia", "name": "ia" }, { "id": "tag-p3", "name": "priorite-3" }]
+}

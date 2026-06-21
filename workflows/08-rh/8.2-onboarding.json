@@ -1,0 +1,195 @@
+{
+  "name": "8.2 – Onboarding automatisé des collaborateurs",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000001",
+      "name": "Webhook Nouveau Collaborateur",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "onboarding",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000002",
+      "name": "Créer compte Google Workspace",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 150],
+      "parameters": {
+        "method": "POST",
+        "url": "https://admin.googleapis.com/admin/directory/v1/users",
+        "authentication": "oAuth2",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "primaryEmail", "value": "={{ $json.prenom.toLowerCase() }}.{{ $json.nom.toLowerCase() }}@{{ $env.COMPANY_DOMAIN }}" },
+            { "name": "name.givenName", "value": "={{ $json.prenom }}" },
+            { "name": "name.familyName", "value": "={{ $json.nom }}" },
+            { "name": "password", "value": "={{ 'Nexum' + Math.random().toString(36).slice(-8) + '!' }}" },
+            { "name": "changePasswordAtNextLogin", "value": "true" },
+            { "name": "orgUnitPath", "value": "={{ '/Collaborateurs/' + $json.poste }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000003",
+      "name": "Inviter sur Discord",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 320],
+      "parameters": {
+        "method": "POST",
+        "url": "https://discord.com/api/v10/guilds/{{ $env.DISCORD_GUILD_ID }}/members",
+        "headers": {
+          "parameters": [{ "name": "Authorization", "value": "Bot {{ $env.DISCORD_BOT_TOKEN }}" }]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "access_token", "value": "={{ $json.discord_token || '' }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000004",
+      "name": "Créer accès n8n",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 490],
+      "parameters": {
+        "method": "POST",
+        "url": "https://{{ $env.N8N_HOST }}/api/v1/users",
+        "headers": {
+          "parameters": [{ "name": "X-N8N-API-KEY", "value": "={{ $env.N8N_API_KEY }}" }]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "email", "value": "={{ $json.prenom.toLowerCase() }}.{{ $json.nom.toLowerCase() }}@{{ $env.COMPANY_DOMAIN }}" },
+            { "name": "firstName", "value": "={{ $json.prenom }}" },
+            { "name": "lastName", "value": "={{ $json.nom }}" },
+            { "name": "role", "value": "={{ $json.role_n8n || 'member' }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000005",
+      "name": "Générer document accueil",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [750, 300],
+      "parameters": {
+        "operation": "message",
+        "modelId": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu génères un kit d'accueil personnalisé pour un nouveau collaborateur d'une agence de développement web. Inclus : mot de bienvenue, liens utiles, processus de travail, outils, contacts clés, premières étapes. Format markdown professionnel et chaleureux."
+            },
+            {
+              "role": "user",
+              "content": "Nouveau collaborateur:\nPrénom: {{ $json.prenom }}\nNom: {{ $json.nom }}\nPoste: {{ $json.poste }}\nDate de début: {{ $json.date_debut }}\nManager: {{ $json.manager }}"
+            }
+          ]
+        },
+        "options": { "temperature": 0.6, "maxTokens": 2000 }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000006",
+      "name": "Créer dossier collaborateur",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 150],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_HOST }}/api/v1/storage/dossier",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "chemin", "value": "RH/Collaborateurs/{{ $('Webhook Nouveau Collaborateur').item.json.nom }}_{{ $('Webhook Nouveau Collaborateur').item.json.prenom }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000007",
+      "name": "Envoyer email de bienvenue",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1000, 380],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $('Webhook Nouveau Collaborateur').item.json.email_perso }}",
+        "subject": "Bienvenue chez Nexum Flow, {{ $('Webhook Nouveau Collaborateur').item.json.prenom }} !",
+        "emailType": "html",
+        "message": "<html><body><h1>Bienvenue {{ $('Webhook Nouveau Collaborateur').item.json.prenom }} !</h1><p>Nous sommes ravis de vous accueillir dans l'équipe Nexum Flow.</p><h2>Vos accès</h2><ul><li><strong>Email professionnel :</strong> {{ $('Webhook Nouveau Collaborateur').item.json.prenom.toLowerCase() }}.{{ $('Webhook Nouveau Collaborateur').item.json.nom.toLowerCase() }}@{{ $env.COMPANY_DOMAIN }}</li><li><strong>n8n :</strong> https://{{ $env.N8N_HOST }}</li></ul><h2>Kit d'accueil</h2><div style='background:#f8f9fa;padding:15px;border-radius:8px'>{{ $('Générer document accueil').item.json.message.content.replace(/\\n/g, '<br>') }}</div><p>N'hésitez pas à contacter votre manager pour toute question.</p><p>À très bientôt !<br>L'équipe Nexum Flow</p></body></html>"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000008",
+      "name": "Annoncer sur Discord",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "parameters": {
+        "operation": "sendMessage",
+        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
+        "channelId": "={{ $env.DISCORD_GENERAL_CHANNEL_ID }}",
+        "content": "🎉 **Bienvenue {{ $('Webhook Nouveau Collaborateur').item.json.prenom }} {{ $('Webhook Nouveau Collaborateur').item.json.nom }} !**\nPoste : **{{ $('Webhook Nouveau Collaborateur').item.json.poste }}**\nDate de début : {{ $('Webhook Nouveau Collaborateur').item.json.date_debut }}\n\nSouhaitons-lui la bienvenue dans l'équipe ! 👋"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000009",
+      "name": "Réponse succès",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1500, 300],
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseData": "={{ JSON.stringify({ success: true, message: 'Onboarding lancé avec succès' }) }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Nouveau Collaborateur": {
+      "main": [
+        [
+          { "node": "Créer compte Google Workspace", "type": "main", "index": 0 },
+          { "node": "Inviter sur Discord", "type": "main", "index": 0 },
+          { "node": "Créer accès n8n", "type": "main", "index": 0 },
+          { "node": "Générer document accueil", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Créer compte Google Workspace": {
+      "main": [[{ "node": "Créer dossier collaborateur", "type": "main", "index": 0 }]]
+    },
+    "Générer document accueil": {
+      "main": [[{ "node": "Envoyer email de bienvenue", "type": "main", "index": 0 }]]
+    },
+    "Envoyer email de bienvenue": {
+      "main": [[{ "node": "Annoncer sur Discord", "type": "main", "index": 0 }]]
+    },
+    "Annoncer sur Discord": {
+      "main": [[{ "node": "Réponse succès", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "versionId": "a1b2c3d4-0021-0021-0021-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "id": "nexum-wf-08-02",
+  "tags": [{ "id": "tag-rh", "name": "rh" }, { "id": "tag-ia", "name": "ia" }]
+}
