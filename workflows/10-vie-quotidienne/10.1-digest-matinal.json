@@ -1,0 +1,162 @@
+{
+  "name": "10.1 – Digest matinal personnalisé",
+  "nodes": [
+    {
+      "id": "b1b2c3d4-1001-1001-1001-000000000001",
+      "name": "Chaque matin à 7h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [100, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1001-1001-1001-000000000002",
+      "name": "Météo du jour",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [300, 150],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://wttr.in/{{ $env.VILLE_DOMICILE || 'Paris' }}?format=j1",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } }
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1001-1001-1001-000000000003",
+      "name": "Hacker News top stories",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [300, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://hacker-news.firebaseio.com/v0/topstories.json",
+        "options": {
+          "response": { "response": { "responseFormat": "json" } }
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1001-1001-1001-000000000004",
+      "name": "Actualités RSS",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [300, 450],
+      "parameters": {
+        "url": "https://www.lemonde.fr/rss/une.xml"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1001-1001-1001-000000000005",
+      "name": "Attendre toutes les sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [520, 300],
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "multiplex",
+        "options": {}
+      }
+    },
+    {
+      "id": "b1b2c3d4-1001-1001-1001-000000000006",
+      "name": "Agréger données",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [740, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const meteo = $('Météo du jour').item.json;\nconst hnIds = $('Hacker News top stories').item.json;\nconst articles = $('Actualités RSS').all().slice(0, 5);\n\nconst temp = meteo.current_condition?.[0]?.temp_C || '?';\nconst desc = meteo.current_condition?.[0]?.weatherDesc?.[0]?.value || '?';\nconst lieu = $env.VILLE_DOMICILE || 'Paris';\n\nconst topHN = Array.isArray(hnIds) ? hnIds.slice(0, 5).join(', ') : '';\n\nconst titresActu = articles.map(a => `- ${a.json.title || ''}`).join('\\n');\n\nreturn [{\n  json: {\n    meteo: `${lieu} : ${temp}°C, ${desc}`,\n    hn_ids: topHN,\n    actualites: titresActu,\n    date: new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })\n  }\n}];"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1001-1001-1001-000000000007",
+      "name": "Générer digest avec IA",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [960, 300],
+      "parameters": {
+        "operation": "message",
+        "modelId": "mistral-small-latest",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es un assistant personnel bienveillant. Tu rédiges un digest matinal synthétique et motivant en français. Format HTML simple, sections claires, ton positif."
+            },
+            {
+              "role": "user",
+              "content": "Date : {{ $json.date }}\nMétéo : {{ $json.meteo }}\n\nActualités du jour :\n{{ $json.actualites }}\n\nRédige un digest matinal HTML (max 300 mots) avec : bonjour motivant, météo en 1 phrase, top 3 actus commentées brièvement, conseil du jour. Termine par une citation inspirante."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 600
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1001-1001-1001-000000000008",
+      "name": "Envoyer digest par email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1180, 300],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $env.EMAIL_PERSO }}",
+        "subject": "=☀️ Votre digest matinal – {{ new Date().toLocaleDateString('fr-FR') }}",
+        "emailType": "html",
+        "message": "={{ $json.message.content }}"
+      }
+    }
+  ],
+  "connections": {
+    "Chaque matin à 7h": {
+      "main": [[
+        { "node": "Météo du jour", "type": "main", "index": 0 },
+        { "node": "Hacker News top stories", "type": "main", "index": 0 },
+        { "node": "Actualités RSS", "type": "main", "index": 0 }
+      ]]
+    },
+    "Météo du jour": {
+      "main": [[{ "node": "Attendre toutes les sources", "type": "main", "index": 0 }]]
+    },
+    "Hacker News top stories": {
+      "main": [[{ "node": "Attendre toutes les sources", "type": "main", "index": 1 }]]
+    },
+    "Actualités RSS": {
+      "main": [[{ "node": "Attendre toutes les sources", "type": "main", "index": 2 }]]
+    },
+    "Attendre toutes les sources": {
+      "main": [[{ "node": "Agréger données", "type": "main", "index": 0 }]]
+    },
+    "Agréger données": {
+      "main": [[{ "node": "Générer digest avec IA", "type": "main", "index": 0 }]]
+    },
+    "Générer digest avec IA": {
+      "main": [[{ "node": "Envoyer digest par email", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "b1b2c3d4-1001-1001-1001-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "tags": [
+    { "id": "tag-vie-quotidienne", "name": "vie-quotidienne" },
+    { "id": "tag-ia", "name": "ia" }
+  ]
+}

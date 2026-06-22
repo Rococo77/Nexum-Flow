@@ -1,0 +1,150 @@
+{
+  "name": "10.4 – Alertes prix & suivi produits",
+  "nodes": [
+    {
+      "id": "b1b2c3d4-1004-1004-1004-000000000001",
+      "name": "Vérification quotidienne 9h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [100, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1004-1004-1004-000000000002",
+      "name": "Produits à surveiller",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [300, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, nom, url, prix_actuel, seuil_alerte FROM produits_surveilles WHERE actif = true ORDER BY derniere_verif ASC NULLS FIRST"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1004-1004-1004-000000000003",
+      "name": "Diviser par produit",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [520, 300],
+      "parameters": {
+        "fieldToSplitOut": "id",
+        "options": {}
+      }
+    },
+    {
+      "id": "b1b2c3d4-1004-1004-1004-000000000004",
+      "name": "Récupérer page produit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [740, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": { "response": { "responseFormat": "text" } },
+          "redirect": { "redirect": { "followRedirects": true } }
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1004-1004-1004-000000000005",
+      "name": "Extraire prix",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 300],
+      "parameters": {
+        "jsCode": "const html = ($input.item.json.data || '').toString();\nconst produit = $('Produits à surveiller').item.json;\n\n// Patterns courants de prix dans les pages e-commerce\nconst patterns = [\n  /itemprop=[\"']price[\"'][^>]*content=[\"']([\\d.,]+)[\"']/i,\n  /class=[\"'][^\"']*price[^\"']*[\"'][^>]*>[^<]*([\\d]+[.,][\\d]{2})/i,\n  /[\"']price[\"']:\\s*([\\d.]+)/i,\n  /([\\d]+,[\\d]{2})\\s*€/\n];\n\nlet prixTrouve = null;\nfor (const p of patterns) {\n  const m = html.match(p);\n  if (m) {\n    prixTrouve = parseFloat(m[1].replace(',', '.'));\n    if (prixTrouve > 0) break;\n  }\n}\n\nconst prixPrecedent = parseFloat(produit.prix_actuel) || null;\nconst seuil = parseFloat(produit.seuil_alerte) || 10;\nconst variation = prixPrecedent && prixTrouve ? ((prixTrouve - prixPrecedent) / prixPrecedent * 100) : 0;\n\nreturn {\n  produit_id: produit.id,\n  nom: produit.nom,\n  url: produit.url,\n  prix_precedent: prixPrecedent,\n  prix_actuel: prixTrouve,\n  seuil_alerte: seuil,\n  variation_pct: Math.round(variation * 10) / 10,\n  alerte: prixTrouve !== null && prixPrecedent !== null && variation <= -seuil\n};"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1004-1004-1004-000000000006",
+      "name": "Mettre à jour prix en base",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1180, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE produits_surveilles SET prix_actuel = $1, derniere_verif = NOW() WHERE id = $2",
+        "queryParams": "={{ [$json.prix_actuel, $json.produit_id] }}"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1004-1004-1004-000000000007",
+      "name": "Prix en baisse ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1400, 300],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.alerte }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equal" }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1004-1004-1004-000000000008",
+      "name": "Alerte bonne affaire",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1620, 200],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $env.EMAIL_PERSO }}",
+        "subject": "=🏷️ Baisse de prix : {{ $json.nom }} ({{ $json.variation_pct }}%)",
+        "emailType": "html",
+        "message": "<html><body><h2>💰 Bonne affaire détectée !</h2><p><strong>{{ $json.nom }}</strong></p><p>Prix précédent : <s>{{ $json.prix_precedent }} €</s><br>Prix actuel : <strong style='color:green'>{{ $json.prix_actuel }} €</strong><br>Économie : <strong>{{ $json.variation_pct }}%</strong></p><p><a href='{{ $json.url }}' style='background:#2563eb;color:white;padding:10px 20px;text-decoration:none;border-radius:4px'>Voir le produit</a></p></body></html>"
+      }
+    }
+  ],
+  "connections": {
+    "Vérification quotidienne 9h": {
+      "main": [[{ "node": "Produits à surveiller", "type": "main", "index": 0 }]]
+    },
+    "Produits à surveiller": {
+      "main": [[{ "node": "Diviser par produit", "type": "main", "index": 0 }]]
+    },
+    "Diviser par produit": {
+      "main": [[{ "node": "Récupérer page produit", "type": "main", "index": 0 }]]
+    },
+    "Récupérer page produit": {
+      "main": [[{ "node": "Extraire prix", "type": "main", "index": 0 }]]
+    },
+    "Extraire prix": {
+      "main": [[{ "node": "Mettre à jour prix en base", "type": "main", "index": 0 }]]
+    },
+    "Mettre à jour prix en base": {
+      "main": [[{ "node": "Prix en baisse ?", "type": "main", "index": 0 }]]
+    },
+    "Prix en baisse ?": {
+      "main": [
+        [{ "node": "Alerte bonne affaire", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "b1b2c3d4-1004-1004-1004-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "tags": [
+    { "id": "tag-vie-quotidienne", "name": "vie-quotidienne" },
+    { "id": "tag-alertes", "name": "alertes" }
+  ]
+}

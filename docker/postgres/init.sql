@@ -250,3 +250,61 @@ CREATE INDEX IF NOT EXISTS idx_absences_date ON absences(date);
 
 CREATE TRIGGER trigger_candidatures_updated_at BEFORE UPDATE ON candidatures FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trigger_etudiants_updated_at BEFORE UPDATE ON etudiants FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ============================================================
+-- 10 – Vie quotidienne
+-- ============================================================
+
+-- Budget personnel
+CREATE TABLE IF NOT EXISTS depenses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    montant DECIMAL(10,2) NOT NULL,
+    categorie VARCHAR(100) DEFAULT 'autre',
+    description VARCHAR(500),
+    date DATE DEFAULT CURRENT_DATE,
+    source VARCHAR(50) DEFAULT 'manuel',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Produits à surveiller (alertes prix)
+CREATE TABLE IF NOT EXISTS produits_surveilles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nom VARCHAR(255) NOT NULL,
+    url VARCHAR(1000) NOT NULL,
+    prix_initial DECIMAL(10,2),
+    prix_actuel DECIMAL(10,2),
+    seuil_alerte DECIMAL(5,2) DEFAULT 10,
+    derniere_verif TIMESTAMPTZ,
+    actif BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Bibliothèque personnelle d'articles
+CREATE TABLE IF NOT EXISTS articles_personnels (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    url VARCHAR(1000),
+    titre VARCHAR(500),
+    resume TEXT,
+    points_cles TEXT[],
+    tags TEXT[],
+    contexte VARCHAR(500),
+    lu BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Liste de courses
+CREATE TABLE IF NOT EXISTS liste_courses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    article VARCHAR(255) NOT NULL,
+    categorie VARCHAR(100),
+    quantite VARCHAR(100),
+    achete BOOLEAN DEFAULT FALSE,
+    semaine DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_depenses_date ON depenses(date);
+CREATE INDEX IF NOT EXISTS idx_depenses_categorie ON depenses(categorie);
+CREATE INDEX IF NOT EXISTS idx_produits_actif ON produits_surveilles(actif);
+CREATE INDEX IF NOT EXISTS idx_articles_lu ON articles_personnels(lu);
+CREATE INDEX IF NOT EXISTS idx_courses_semaine ON liste_courses(semaine);

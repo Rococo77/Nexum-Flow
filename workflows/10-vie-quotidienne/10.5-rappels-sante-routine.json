@@ -1,0 +1,256 @@
+{
+  "name": "10.5 – Rappels santé & routine quotidienne",
+  "nodes": [
+    {
+      "id": "b1b2c3d4-1005-1005-1005-000000000001",
+      "name": "Déclencheur horaire",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [100, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 8 * * *" },
+            { "field": "cronExpression", "expression": "0 12 * * *" },
+            { "field": "cronExpression", "expression": "30 14 * * *" },
+            { "field": "cronExpression", "expression": "0 19 * * *" },
+            { "field": "cronExpression", "expression": "0 21 * * 0" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1005-1005-1005-000000000002",
+      "name": "Identifier le moment",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [300, 300],
+      "parameters": {
+        "mode": "expression",
+        "output": "={{ (() => { const h = new Date().getHours(); const d = new Date().getDay(); if (h === 8) return 'matin'; if (h === 12) return 'midi'; if (h === 14) return 'apres-midi'; if (h === 19) return 'soir'; if (h === 21 && d === 0) return 'bilan'; return 'autre'; })() }}",
+        "rules": {
+          "values": [
+            { "outputKey": "matin", "value": "matin" },
+            { "outputKey": "midi", "value": "midi" },
+            { "outputKey": "apres-midi", "value": "apres-midi" },
+            { "outputKey": "soir", "value": "soir" },
+            { "outputKey": "bilan", "value": "bilan" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1005-1005-1005-000000000003",
+      "name": "Message matin",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [520, 100],
+      "parameters": {
+        "operation": "message",
+        "modelId": "mistral-small-latest",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es un coach bienveillant. Génère un message de démarrage matinal HTML motivant (50 mots max). Inclus : une salutation, 3 habitudes du matin (eau, étirements, intention du jour), et une citation courte."
+            },
+            { "role": "user", "content": "=Génère le message pour ce {{ new Date().toLocaleDateString('fr-FR', {weekday:'long'}) }}." }
+          ]
+        },
+        "options": { "temperature": 0.8, "maxTokens": 200 }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1005-1005-1005-000000000004",
+      "name": "Message midi",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [520, 240],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "name": "message",
+              "value": "<p>💧 <strong>Rappel hydratation :</strong> avez-vous bu suffisamment d'eau ce matin ? Visez 250ml maintenant.<br>🚶 Après le repas, 10 minutes de marche font une grande différence.</p>",
+              "type": "string"
+            },
+            { "name": "sujet", "value": "💧 Rappel de midi – hydratation & pause", "type": "string" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1005-1005-1005-000000000005",
+      "name": "Message après-midi",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [520, 380],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "name": "message",
+              "value": "<p>☕ <strong>Coup de mou de l'après-midi ?</strong><br>Plutôt qu'un café supplémentaire, essayez :<br>• 5 minutes de respiration profonde<br>• Un verre d'eau froide<br>• 2 minutes d'étirement cervicaux<br><br>📋 Faites le point sur vos 3 priorités du jour : sont-elles avancées ?</p>",
+              "type": "string"
+            },
+            { "name": "sujet", "value": "☕ Pause 14h30 – rechargez les batteries", "type": "string" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1005-1005-1005-000000000006",
+      "name": "Message soir",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [520, 520],
+      "parameters": {
+        "operation": "message",
+        "modelId": "mistral-small-latest",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es un coach bien-être. Génère un message de soirée HTML (50 mots max) pour déconnecter du travail. Inclus : félicitations pour la journée, rituel de déconnexion (écrans off à 21h, lecture, marche), préparation du lendemain (préparer ses affaires, noter 3 tâches)."
+            },
+            { "role": "user", "content": "=Génère le message du soir pour ce {{ new Date().toLocaleDateString('fr-FR', {weekday:'long'}) }}." }
+          ]
+        },
+        "options": { "temperature": 0.7, "maxTokens": 200 }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1005-1005-1005-000000000007",
+      "name": "Bilan hebdomadaire",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [520, 660],
+      "parameters": {
+        "operation": "message",
+        "modelId": "mistral-small-latest",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es un coach de vie. Génère un bilan de fin de semaine HTML (100 mots max). Encourage la réflexion sur : victoires de la semaine, leçons apprises, objectif de la semaine prochaine, activité de ressourcement pour le weekend."
+            },
+            { "role": "user", "content": "Génère le bilan du dimanche soir." }
+          ]
+        },
+        "options": { "temperature": 0.7, "maxTokens": 300 }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1005-1005-1005-000000000008",
+      "name": "Email matin",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [740, 100],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $env.EMAIL_PERSO }}",
+        "subject": "=🌅 Bonjour ! Démarrage {{ new Date().toLocaleDateString('fr-FR', {weekday:'long'}) }}",
+        "emailType": "html",
+        "message": "={{ $json.message.content }}"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1005-1005-1005-000000000009",
+      "name": "Email midi",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [740, 240],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $env.EMAIL_PERSO }}",
+        "subject": "={{ $json.sujet }}",
+        "emailType": "html",
+        "message": "={{ $json.message }}"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1005-1005-1005-000000000010",
+      "name": "Email après-midi",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [740, 380],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $env.EMAIL_PERSO }}",
+        "subject": "={{ $json.sujet }}",
+        "emailType": "html",
+        "message": "={{ $json.message }}"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1005-1005-1005-000000000011",
+      "name": "Email soir",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [740, 520],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $env.EMAIL_PERSO }}",
+        "subject": "=🌙 Bonne soirée – déconnexion et repos",
+        "emailType": "html",
+        "message": "={{ $json.message.content }}"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1005-1005-1005-000000000012",
+      "name": "Email bilan",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [740, 660],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $env.EMAIL_PERSO }}",
+        "subject": "=📊 Bilan de la semaine – {{ new Date().toLocaleDateString('fr-FR') }}",
+        "emailType": "html",
+        "message": "={{ $json.message.content }}"
+      }
+    }
+  ],
+  "connections": {
+    "Déclencheur horaire": {
+      "main": [[{ "node": "Identifier le moment", "type": "main", "index": 0 }]]
+    },
+    "Identifier le moment": {
+      "main": [
+        [{ "node": "Message matin", "type": "main", "index": 0 }],
+        [{ "node": "Message midi", "type": "main", "index": 0 }],
+        [{ "node": "Message après-midi", "type": "main", "index": 0 }],
+        [{ "node": "Message soir", "type": "main", "index": 0 }],
+        [{ "node": "Bilan hebdomadaire", "type": "main", "index": 0 }]
+      ]
+    },
+    "Message matin": {
+      "main": [[{ "node": "Email matin", "type": "main", "index": 0 }]]
+    },
+    "Message midi": {
+      "main": [[{ "node": "Email midi", "type": "main", "index": 0 }]]
+    },
+    "Message après-midi": {
+      "main": [[{ "node": "Email après-midi", "type": "main", "index": 0 }]]
+    },
+    "Message soir": {
+      "main": [[{ "node": "Email soir", "type": "main", "index": 0 }]]
+    },
+    "Bilan hebdomadaire": {
+      "main": [[{ "node": "Email bilan", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "b1b2c3d4-1005-1005-1005-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "tags": [
+    { "id": "tag-vie-quotidienne", "name": "vie-quotidienne" },
+    { "id": "tag-sante", "name": "sante" }
+  ]
+}

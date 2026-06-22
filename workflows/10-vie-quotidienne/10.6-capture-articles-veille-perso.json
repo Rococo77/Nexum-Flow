@@ -1,0 +1,148 @@
+{
+  "name": "10.6 – Capture articles & bibliothèque personnelle",
+  "nodes": [
+    {
+      "id": "b1b2c3d4-1006-1006-1006-000000000001",
+      "name": "Webhook Capture URL",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "capture",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "b1b2c3d4-1006-1006-1006-000000000002",
+      "name": "Valider et sécuriser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 300],
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body || $input.item.json;\nconst url = (body.url || '').toString().trim();\nif (!/^https?:\\/\\/.+/.test(url)) throw new Error('URL invalide – doit commencer par http:// ou https://');\nif (url.length > 2000) throw new Error('URL trop longue');\nconst clean = s => (s || '').toString().replace(/<[^>]*>/g, '').replace(/ignore\\s+(all|previous|above)/gi, '').trim().substring(0, 300);\nreturn { url, contexte: clean(body.contexte || body.note || '') };"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1006-1006-1006-000000000003",
+      "name": "Récupérer contenu",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "response": { "response": { "responseFormat": "text" } },
+          "redirect": { "redirect": { "followRedirects": true, "maxRedirects": 3 } },
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1006-1006-1006-000000000004",
+      "name": "Extraire texte",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [740, 300],
+      "parameters": {
+        "jsCode": "const html = ($input.item.json.data || '').toString();\nconst url = $('Valider et sécuriser').item.json.url;\nconst contexte = $('Valider et sécuriser').item.json.contexte;\n\n// Extraire le titre\nconst titleMatch = html.match(/<title[^>]*>([^<]+)<\\/title>/i);\nconst titre = (titleMatch ? titleMatch[1] : url).trim().substring(0, 200);\n\n// Extraire le texte principal (heuristique : strip HTML tags)\nconst texte = html\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, '')\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, '')\n  .replace(/<nav[\\s\\S]*?<\\/nav>/gi, '')\n  .replace(/<footer[\\s\\S]*?<\\/footer>/gi, '')\n  .replace(/<header[\\s\\S]*?<\\/header>/gi, '')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&amp;/g, '&')\n  .replace(/&lt;/g, '<')\n  .replace(/&gt;/g, '>')\n  .replace(/\\s{2,}/g, ' ')\n  .trim()\n  .substring(0, 4000);\n\nreturn { url, contexte, titre, texte };"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1006-1006-1006-000000000005",
+      "name": "Résumer avec IA",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [960, 300],
+      "parameters": {
+        "operation": "message",
+        "modelId": "mistral-large-latest",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es un assistant de curation personnelle. À partir du contenu d'un article, génère UNIQUEMENT ce JSON :\n{\n  \"titre_clean\": \"string (titre court et clair)\",\n  \"resume\": \"string (3-4 phrases, l'essentiel de l'article)\",\n  \"points_cles\": [\"string (5 points maximum)\"],\n  \"tags\": [\"string (3-5 mots-clés)\"],\n  \"interet\": \"fort\" | \"moyen\" | \"faible\",\n  \"action_suggérée\": \"string (que faire avec cet article ?)\"\n}"
+            },
+            {
+              "role": "user",
+              "content": "=URL : {{ $json.url }}\nContexte personnel : {{ $json.contexte || 'non précisé' }}\n\nContenu :\n{{ $json.texte.substring(0, 3500) }}"
+            }
+          ]
+        },
+        "options": { "temperature": 0.2, "maxTokens": 700 }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1006-1006-1006-000000000006",
+      "name": "Parser résumé IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1180, 300],
+      "parameters": {
+        "jsCode": "const content = $input.item.json.message.content;\nconst src = $('Extraire texte').item.json;\nlet ai;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  ai = JSON.parse(match[0]);\n} catch(e) {\n  ai = { titre_clean: src.titre, resume: src.texte.substring(0, 500), points_cles: [], tags: [], interet: 'moyen', action_suggérée: 'À lire' };\n}\nreturn {\n  url: src.url,\n  contexte: src.contexte,\n  titre: ai.titre_clean || src.titre,\n  resume: ai.resume || '',\n  points_cles: JSON.stringify(ai.points_cles || []),\n  tags: JSON.stringify(ai.tags || []),\n  interet: ai.interet || 'moyen',\n  action: ai.action_suggérée || ''\n};"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1006-1006-1006-000000000007",
+      "name": "Sauvegarder en bibliothèque",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1400, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO articles_personnels (url, titre, resume, points_cles, tags, contexte) VALUES ($1, $2, $3, $4::text[], $5::text[], $6) RETURNING id",
+        "queryParams": "={{ [$json.url, $json.titre, $json.resume, $json.points_cles, $json.tags, $json.contexte] }}"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1006-1006-1006-000000000008",
+      "name": "Réponse avec résumé",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1620, 300],
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseData": "={{ JSON.stringify({ success: true, titre: $('Parser résumé IA').item.json.titre, resume: $('Parser résumé IA').item.json.resume, tags: JSON.parse($('Parser résumé IA').item.json.tags || '[]'), action: $('Parser résumé IA').item.json.action }) }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Capture URL": {
+      "main": [[{ "node": "Valider et sécuriser", "type": "main", "index": 0 }]]
+    },
+    "Valider et sécuriser": {
+      "main": [[{ "node": "Récupérer contenu", "type": "main", "index": 0 }]]
+    },
+    "Récupérer contenu": {
+      "main": [[{ "node": "Extraire texte", "type": "main", "index": 0 }]]
+    },
+    "Extraire texte": {
+      "main": [[{ "node": "Résumer avec IA", "type": "main", "index": 0 }]]
+    },
+    "Résumer avec IA": {
+      "main": [[{ "node": "Parser résumé IA", "type": "main", "index": 0 }]]
+    },
+    "Parser résumé IA": {
+      "main": [[{ "node": "Sauvegarder en bibliothèque", "type": "main", "index": 0 }]]
+    },
+    "Sauvegarder en bibliothèque": {
+      "main": [[{ "node": "Réponse avec résumé", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "b1b2c3d4-1006-1006-1006-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "tags": [
+    { "id": "tag-vie-quotidienne", "name": "vie-quotidienne" },
+    { "id": "tag-ia", "name": "ia" },
+    { "id": "tag-veille", "name": "veille" }
+  ]
+}
