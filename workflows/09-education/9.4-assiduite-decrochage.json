@@ -1,0 +1,207 @@
+{
+  "name": "9.4 – Suivi de l'assiduité et alerte décrochage",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0023-0023-0023-000000000001",
+      "name": "Schedule – chaque lundi 8h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0023-0023-0023-000000000002",
+      "name": "Étudiants à risque",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT e.id, e.nom, e.prenom, e.email, e.formation, e.responsable_pedago_email,\n       COALESCE(SUM(a.duree_heures), 0) AS heures_absence\nFROM etudiants e\nJOIN absences a ON a.etudiant_id = e.id\nWHERE e.statut = 'actif'\n  AND a.justifiee = FALSE\n  AND a.date >= NOW() - INTERVAL '30 days'\nGROUP BY e.id, e.nom, e.prenom, e.email, e.formation, e.responsable_pedago_email\nHAVING COALESCE(SUM(a.duree_heures), 0) >= $1",
+        "additionalFields": {
+          "queryParams": "={{ [Number($env.SEUIL_DECROCHAGE_HEURES || 16)] }}"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0023-0023-0023-000000000003",
+      "name": "Décrochage détecté ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        710,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0023-0023-0023-000000000004",
+      "name": "Message d'accompagnement IA",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        940,
+        220
+      ],
+      "parameters": {
+        "operation": "message",
+        "modelId": "mistral-large-latest",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es conseiller pédagogique bienveillant dans un établissement post-bac. Rédige un message court (5-6 phrases), chaleureux et non culpabilisant, à destination d'un étudiant montrant des signes de décrochage (absences répétées). Propose un rendez-vous d'accompagnement et rappelle les ressources de soutien. Ton : empathique, pas de reproche. Retourne uniquement le texte du message, sans objet ni signature."
+            },
+            {
+              "role": "user",
+              "content": "Prénom : {{ $json.prenom }}\nFormation : {{ $json.formation }}\nHeures d'absence non justifiées (30 derniers jours) : {{ $json.heures_absence }}h"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.6,
+          "maxTokens": 400
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0023-0023-0023-000000000005",
+      "name": "Email accompagnement étudiant",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1170,
+        140
+      ],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $('Étudiants à risque').item.json.email }}",
+        "subject": "Prenons un moment pour échanger",
+        "emailType": "html",
+        "message": "<html><body><p>{{ $json.message.content }}</p><p>--<br>Le service pédagogique</p></body></html>"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0023-0023-0023-000000000006",
+      "name": "Alerte responsable pédagogique",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        1170,
+        320
+      ],
+      "parameters": {
+        "operation": "sendMessage",
+        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
+        "channelId": "={{ $env.DISCORD_SCOLARITE_CHANNEL_ID }}",
+        "content": "⚠️ **Alerte décrochage**\n**Étudiant :** {{ $('Étudiants à risque').item.json.prenom }} {{ $('Étudiants à risque').item.json.nom }} ({{ $('Étudiants à risque').item.json.formation }})\n**Absences non justifiées (30j) :** {{ $('Étudiants à risque').item.json.heures_absence }}h\n**Responsable :** {{ $('Étudiants à risque').item.json.responsable_pedago_email }}\nUn message d'accompagnement automatique a été envoyé à l'étudiant."
+      }
+    }
+  ],
+  "connections": {
+    "Schedule – chaque lundi 8h": {
+      "main": [
+        [
+          {
+            "node": "Étudiants à risque",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Étudiants à risque": {
+      "main": [
+        [
+          {
+            "node": "Décrochage détecté ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Décrochage détecté ?": {
+      "main": [
+        [
+          {
+            "node": "Message d'accompagnement IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Message d'accompagnement IA": {
+      "main": [
+        [
+          {
+            "node": "Email accompagnement étudiant",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Alerte responsable pédagogique",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "a1b2c3d4-0023-0023-0023-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-education",
+      "name": "education"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    },
+    {
+      "id": "tag-p2",
+      "name": "priorite-2"
+    }
+  ]
+}

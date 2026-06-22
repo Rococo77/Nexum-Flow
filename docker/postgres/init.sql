@@ -155,3 +155,98 @@ CREATE TRIGGER trigger_leads_updated_at BEFORE UPDATE ON leads FOR EACH ROW EXEC
 CREATE TRIGGER trigger_clients_updated_at BEFORE UPDATE ON clients FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trigger_devis_updated_at BEFORE UPDATE ON devis FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trigger_factures_updated_at BEFORE UPDATE ON factures FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ============================================================
+-- 09 – Module Écoles post-bac (enseignement supérieur)
+-- ============================================================
+
+-- Table des candidatures
+CREATE TABLE IF NOT EXISTS candidatures (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nom VARCHAR(255),
+    prenom VARCHAR(255),
+    email VARCHAR(255),
+    telephone VARCHAR(50),
+    formation_visee VARCHAR(255),
+    bac_serie VARCHAR(50),
+    bac_mention VARCHAR(50),
+    moyenne_generale DECIMAL(4,2),
+    lettre_motivation TEXT,
+    source VARCHAR(50) DEFAULT 'site',
+    score INTEGER DEFAULT 0,
+    recommandation VARCHAR(50),
+    statut VARCHAR(50) DEFAULT 'recu',
+    commentaire_ia TEXT,
+    pieces_manquantes TEXT,
+    nb_relances INTEGER DEFAULT 0,
+    derniere_relance TIMESTAMPTZ,
+    decision_notifiee_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Table des étudiants
+CREATE TABLE IF NOT EXISTS etudiants (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    candidature_id UUID REFERENCES candidatures(id),
+    nom VARCHAR(255) NOT NULL,
+    prenom VARCHAR(255),
+    email VARCHAR(255),
+    formation VARCHAR(255),
+    promotion VARCHAR(50),
+    competences TEXT,
+    recherche_stage BOOLEAN DEFAULT FALSE,
+    responsable_pedago_email VARCHAR(255),
+    statut VARCHAR(50) DEFAULT 'actif',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Table des absences
+CREATE TABLE IF NOT EXISTS absences (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    etudiant_id UUID REFERENCES etudiants(id),
+    date DATE NOT NULL,
+    cours VARCHAR(255),
+    duree_heures DECIMAL(4,1) DEFAULT 0,
+    justifiee BOOLEAN DEFAULT FALSE,
+    motif VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Table des questions au service scolarité
+CREATE TABLE IF NOT EXISTS questions_scolarite (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    etudiant_email VARCHAR(255),
+    question TEXT,
+    reponse_ia TEXT,
+    confiance DECIMAL(3,2),
+    categorie VARCHAR(50),
+    escalade BOOLEAN DEFAULT FALSE,
+    traite_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Table des offres de stage / alternance
+CREATE TABLE IF NOT EXISTS offres_stage (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    entreprise VARCHAR(255),
+    contact_email VARCHAR(255),
+    intitule VARCHAR(255),
+    formation_cible VARCHAR(255),
+    competences TEXT,
+    type_contrat VARCHAR(50) DEFAULT 'stage',
+    duree VARCHAR(100),
+    description TEXT,
+    statut VARCHAR(50) DEFAULT 'ouverte',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_candidatures_statut ON candidatures(statut);
+CREATE INDEX IF NOT EXISTS idx_candidatures_email ON candidatures(email);
+CREATE INDEX IF NOT EXISTS idx_etudiants_formation ON etudiants(formation);
+CREATE INDEX IF NOT EXISTS idx_etudiants_statut ON etudiants(statut);
+CREATE INDEX IF NOT EXISTS idx_absences_etudiant ON absences(etudiant_id);
+CREATE INDEX IF NOT EXISTS idx_absences_date ON absences(date);
+
+CREATE TRIGGER trigger_candidatures_updated_at BEFORE UPDATE ON candidatures FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER trigger_etudiants_updated_at BEFORE UPDATE ON etudiants FOR EACH ROW EXECUTE FUNCTION update_updated_at();

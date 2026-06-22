@@ -1,0 +1,168 @@
+{
+  "name": "9.2 – Relance des dossiers de candidature incomplets",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000001",
+      "name": "Schedule – chaque matin 9h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000002",
+      "name": "Dossiers incomplets",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        490,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, nom, prenom, email, formation_visee, pieces_manquantes, nb_relances\nFROM candidatures\nWHERE statut = 'incomplet'\n  AND nb_relances < 3\n  AND (derniere_relance IS NULL OR derniere_relance <= NOW() - INTERVAL '5 days')",
+        "additionalFields": {},
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000003",
+      "name": "Des dossiers à relancer ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        730,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "cond-1",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000004",
+      "name": "Email relance pièces",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        970,
+        220
+      ],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $json.email }}",
+        "subject": "Dossier de candidature incomplet – {{ $json.formation_visee }}",
+        "emailType": "html",
+        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Votre dossier de candidature pour <strong>{{ $json.formation_visee }}</strong> est en attente de pièces complémentaires :</p><p style='background:#fff3cd;padding:12px;border-radius:4px'>{{ $json.pieces_manquantes }}</p><p>Merci de nous les transmettre rapidement afin que votre dossier puisse être étudié. Sans réponse de votre part, votre candidature ne pourra pas être traitée.</p><p>Cordialement,<br>Le service des admissions</p></body></html>"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0021-0021-0021-000000000005",
+      "name": "MAJ compteur relance",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1210,
+        220
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE candidatures SET nb_relances = nb_relances + 1, derniere_relance = NOW() WHERE id = $1",
+        "additionalFields": {
+          "queryParams": "={{ [$json.id] }}"
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Schedule – chaque matin 9h": {
+      "main": [
+        [
+          {
+            "node": "Dossiers incomplets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dossiers incomplets": {
+      "main": [
+        [
+          {
+            "node": "Des dossiers à relancer ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Des dossiers à relancer ?": {
+      "main": [
+        [
+          {
+            "node": "Email relance pièces",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Email relance pièces": {
+      "main": [
+        [
+          {
+            "node": "MAJ compteur relance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "a1b2c3d4-0021-0021-0021-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-education",
+      "name": "education"
+    },
+    {
+      "id": "tag-p1",
+      "name": "priorite-1"
+    }
+  ]
+}

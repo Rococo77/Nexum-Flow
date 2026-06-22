@@ -14,8 +14,11 @@ Bibliothèque de workflows n8n réutilisables pour agences de développement et 
 | 06 – Marketing | Avis clients, Contenu SEO, Réputation | P3 |
 | 07 – Veille | Veille concurrentielle, Veille technologique | P2 |
 | 08 – RH | Tri CV, Onboarding | – |
+| 09 – Écoles post-bac | Candidatures, Admissions, Décrochage, Assistant scolarité, Stages | P1 / P2 |
 
-**Total : 18 workflows prêts à importer**
+**Total : 27 workflows prêts à importer**
+
+> Le module **09 – Écoles post-bac** est un pack vertical pour l'enseignement supérieur (universités, écoles d'ingénieurs/commerce, BTS) : il couvre le cycle complet candidature → admission → vie scolaire → stage.
 
 ---
 
@@ -28,7 +31,8 @@ Redis        – Queue d'exécution
 FastAPI      – API métier (PDF, stockage, extraction)
 MinIO        – Stockage de fichiers (S3-compatible)
 Traefik      – Reverse proxy + SSL automatique
-OpenAI       – GPT-4o pour l'IA
+Mistral AI   – Modèles IA (mistral-large/small) via API compatible OpenAI
+OpenAI       – Whisper (transcription audio, workflow 5.2 uniquement)
 Docker       – Conteneurisation
 ```
 
@@ -83,7 +87,8 @@ Dans n8n → Settings → Credentials, créez :
 | Gmail OAuth2 | 1.1, 2.1, 4.1, 5.1, 5.2, 6.1, 8.1 |
 | Google Calendar OAuth2 | 3.2, 3.3 |
 | Google Drive OAuth2 | 3.1 |
-| OpenAI API | 1.2, 2.2, 2.3, 4.3, 5.1–5.3, 6.2, 6.3, 7.1, 7.2, 8.1, 8.2 |
+| Mistral AI (credential type "OpenAI", Base URL `https://api.mistral.ai/v1`) | 1.2, 2.2, 2.3, 4.3, 5.1, 5.3, 6.2, 6.3, 7.1, 7.2, 8.1, 8.2, 9.1, 9.3–9.6 |
+| OpenAI API (Whisper) | 5.2 |
 | Discord | Tous (notifications) |
 
 ---
@@ -222,6 +227,44 @@ Crée comptes Google Workspace + Discord + n8n, génère le kit d'accueil IA, an
 
 ---
 
+### 09 – Écoles post-bac
+
+Pack vertical pour les établissements d'enseignement supérieur. Couvre le parcours complet du candidat à l'étudiant.
+
+#### 9.1 – Traitement automatisé des candidatures `P1`
+Reçoit les candidatures, valide l'email, évalue le dossier avec l'IA (score, adéquation, recommandation) et enregistre + notifie le service admissions.
+
+**Déclencheur :** Webhook POST `/candidature`  
+**Sortie IA :** `{ score, adequation_formation, points_forts, points_vigilance, recommandation }`
+
+#### 9.2 – Relance des dossiers incomplets `P1`
+Relance automatiquement (jusqu'à 3 fois, espacées de 5 jours) les candidats dont le dossier est incomplet, en listant les pièces manquantes.
+
+**Déclencheur :** Schedule (lun-ven 9h)
+
+#### 9.3 – Décisions d'admission et convocations `P1`
+Notifie la décision (admis / entretien / liste d'attente / refus) avec un email personnalisé, génère l'attestation PDF pour les admis et met à jour le statut.
+
+**Déclencheur :** Webhook POST `/decision-admission`
+
+#### 9.4 – Suivi de l'assiduité et alerte décrochage `P2`
+Détecte les étudiants cumulant trop d'absences non justifiées, génère un message d'accompagnement bienveillant par IA et alerte le responsable pédagogique.
+
+**Déclencheur :** Schedule (lundi 8h) · seuil configurable via `SEUIL_DECROCHAGE_HEURES`
+
+#### 9.5 – Assistant IA du service scolarité `P2`
+Répond automatiquement aux questions des étudiants (inscriptions, emploi du temps, bourses…). Escalade vers un conseiller humain si la confiance est faible ou si un dossier individuel est concerné.
+
+**Déclencheur :** Webhook POST `/question-scolarite`  
+**Sécurité :** sanitisation anti prompt-injection + seuil de confiance
+
+#### 9.6 – Gestion des offres de stage et matching IA `P2`
+Enregistre les offres déposées par les entreprises et identifie les étudiants les plus pertinents via l'IA, puis notifie le service stages.
+
+**Déclencheur :** Webhook POST `/offre-stage`
+
+---
+
 ## Variables d'environnement requises
 
 Voir `docker/.env.example` pour la liste complète.
@@ -257,8 +300,9 @@ Nexum-Flow/
 │   ├── 04-administratif/       # 3 workflows
 │   ├── 05-ia/                  # 3 workflows
 │   ├── 06-marketing/           # 3 workflows
-│   ├── 07-veille/              # 2 workflows (18 total)
-│   └── 08-rh/                  # 2 workflows
+│   ├── 07-veille/              # 2 workflows
+│   ├── 08-rh/                  # 2 workflows
+│   └── 09-education/           # 6 workflows (27 total)
 └── scripts/
     ├── setup.sh                # Démarrage complet
     └── import-workflows.sh     # Import dans n8n
@@ -274,6 +318,7 @@ Nexum-Flow/
 | **Pack Commercial** | 2.1 + 2.2 + 2.3 | Équipes commerciales |
 | **Pack Administratif** | 4.1 + 4.2 + 4.3 | TPE/PME |
 | **Pack IA** | 5.1 + 5.2 + 5.3 | Direction |
+| **Pack Éducation** | 9.1 → 9.6 | Écoles & établissements post-bac |
 | **Pack ERP** | Tous les workflows | Grandes PME |
 
 ---

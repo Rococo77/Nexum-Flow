@@ -1,0 +1,443 @@
+{
+  "name": "9.3 – Décisions d'admission et convocations",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0022-0022-0022-000000000001",
+      "name": "Webhook Décision",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        400
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "decision-admission",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0022-0022-0022-000000000002",
+      "name": "Récupérer candidat",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        470,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, nom, prenom, email, formation_visee FROM candidatures WHERE id = $1",
+        "additionalFields": {
+          "queryParams": "={{ [$json.body.candidature_id || $json.candidature_id] }}"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0022-0022-0022-000000000003",
+      "name": "Préparer décision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        690,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const cand = $input.item.json;\nconst body = $('Webhook Décision').item.json.body || $('Webhook Décision').item.json;\nconst decision = (body.decision || '').toLowerCase();\nconst valides = ['admis', 'entretien', 'liste_attente', 'refuse'];\nif (!valides.includes(decision)) throw new Error('Décision invalide : ' + decision);\nreturn { ...cand, decision, date_entretien: body.date_entretien || null };"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0022-0022-0022-000000000004",
+      "name": "Admis ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        910,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.decision }}",
+              "rightValue": "admis",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0022-0022-0022-000000000005",
+      "name": "Générer attestation PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1140,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.API_HOST }}/api/v1/documents/attestation/pdf",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "data",
+              "value": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0022-0022-0022-000000000006",
+      "name": "Email admission",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1370,
+        200
+      ],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $('Préparer décision').item.json.email }}",
+        "subject": "Félicitations – Vous êtes admis(e) en {{ $('Préparer décision').item.json.formation_visee }}",
+        "emailType": "html",
+        "message": "<html><body><p>Bonjour {{ $('Préparer décision').item.json.prenom }},</p><p>Nous avons le plaisir de vous informer que votre candidature pour la formation <strong>{{ $('Préparer décision').item.json.formation_visee }}</strong> a été <strong>retenue</strong>.</p><p>Vous trouverez ci-joint votre attestation d'admission. Les modalités d'inscription vous seront communiquées prochainement.</p><p>Félicitations et bienvenue !</p><p>Le service des admissions</p></body></html>",
+        "attachmentsUi": {
+          "attachmentsBinary": [
+            {
+              "property": "data"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0022-0022-0022-000000000007",
+      "name": "Entretien ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.decision }}",
+              "rightValue": "entretien",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0022-0022-0022-000000000008",
+      "name": "Email convocation entretien",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1370,
+        360
+      ],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $('Préparer décision').item.json.email }}",
+        "subject": "Convocation à un entretien d'admission – {{ $('Préparer décision').item.json.formation_visee }}",
+        "emailType": "html",
+        "message": "<html><body><p>Bonjour {{ $('Préparer décision').item.json.prenom }},</p><p>Suite à l'étude de votre dossier pour <strong>{{ $('Préparer décision').item.json.formation_visee }}</strong>, nous souhaitons vous rencontrer lors d'un entretien d'admission.</p><p><strong>Date proposée : {{ $('Préparer décision').item.json.date_entretien }}</strong></p><p>Merci de confirmer votre disponibilité en répondant à cet email.</p><p>Cordialement,<br>Le service des admissions</p></body></html>"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0022-0022-0022-000000000009",
+      "name": "Liste d'attente ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1370,
+        540
+      ],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "c",
+              "leftValue": "={{ $json.decision }}",
+              "rightValue": "liste_attente",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0022-0022-0022-000000000010",
+      "name": "Email liste d'attente",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        480
+      ],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $('Préparer décision').item.json.email }}",
+        "subject": "Votre candidature – {{ $('Préparer décision').item.json.formation_visee }}",
+        "emailType": "html",
+        "message": "<html><body><p>Bonjour {{ $('Préparer décision').item.json.prenom }},</p><p>Votre candidature pour <strong>{{ $('Préparer décision').item.json.formation_visee }}</strong> a retenu notre attention. Vous êtes actuellement placé(e) sur <strong>liste d'attente</strong>.</p><p>Nous reviendrons vers vous dès qu'une place se libère. Merci de votre patience.</p><p>Cordialement,<br>Le service des admissions</p></body></html>"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0022-0022-0022-000000000011",
+      "name": "Email refus",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        620
+      ],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $('Préparer décision').item.json.email }}",
+        "subject": "Réponse à votre candidature – {{ $('Préparer décision').item.json.formation_visee }}",
+        "emailType": "html",
+        "message": "<html><body><p>Bonjour {{ $('Préparer décision').item.json.prenom }},</p><p>Après étude attentive de votre dossier pour <strong>{{ $('Préparer décision').item.json.formation_visee }}</strong>, nous ne sommes pas en mesure de donner une suite favorable à votre candidature cette année.</p><p>Nous vous souhaitons une pleine réussite dans vos projets.</p><p>Cordialement,<br>Le service des admissions</p></body></html>"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0022-0022-0022-000000000012",
+      "name": "MAJ statut candidature",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1830,
+        400
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE candidatures SET statut = $1, decision_notifiee_at = NOW() WHERE id = $2",
+        "additionalFields": {
+          "queryParams": "={{ [$('Préparer décision').item.json.decision, $('Préparer décision').item.json.id] }}"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0022-0022-0022-000000000013",
+      "name": "Réponse webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2050,
+        400
+      ],
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseData": "={{ JSON.stringify({ success: true, decision: $('Préparer décision').item.json.decision }) }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Décision": {
+      "main": [
+        [
+          {
+            "node": "Récupérer candidat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Récupérer candidat": {
+      "main": [
+        [
+          {
+            "node": "Préparer décision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer décision": {
+      "main": [
+        [
+          {
+            "node": "Admis ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Admis ?": {
+      "main": [
+        [
+          {
+            "node": "Générer attestation PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Entretien ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Générer attestation PDF": {
+      "main": [
+        [
+          {
+            "node": "Email admission",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email admission": {
+      "main": [
+        [
+          {
+            "node": "MAJ statut candidature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entretien ?": {
+      "main": [
+        [
+          {
+            "node": "Email convocation entretien",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Liste d'attente ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email convocation entretien": {
+      "main": [
+        [
+          {
+            "node": "MAJ statut candidature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Liste d'attente ?": {
+      "main": [
+        [
+          {
+            "node": "Email liste d'attente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email refus",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email liste d'attente": {
+      "main": [
+        [
+          {
+            "node": "MAJ statut candidature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email refus": {
+      "main": [
+        [
+          {
+            "node": "MAJ statut candidature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MAJ statut candidature": {
+      "main": [
+        [
+          {
+            "node": "Réponse webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "a1b2c3d4-0022-0022-0022-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-education",
+      "name": "education"
+    },
+    {
+      "id": "tag-p1",
+      "name": "priorite-1"
+    }
+  ]
+}

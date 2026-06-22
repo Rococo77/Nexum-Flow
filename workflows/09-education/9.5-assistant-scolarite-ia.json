@@ -1,0 +1,289 @@
+{
+  "name": "9.5 – Assistant IA du service scolarité",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0024-0024-0024-000000000001",
+      "name": "Webhook Question",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "question-scolarite",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0024-0024-0024-000000000002",
+      "name": "Sanitiser question",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        470,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const b = $input.item.json.body || $input.item.json;\nconst MAX = 1000;\nconst sanitize = (s) => (s || '').toString().replace(/ignore (all |previous |above )/gi, '[filtré] ').substring(0, MAX);\nconst emailRegex = /^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$/;\nconst email = (b.email || '').trim().toLowerCase();\nreturn {\n  email: emailRegex.test(email) ? email : null,\n  question: sanitize(b.question)\n};"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0024-0024-0024-000000000003",
+      "name": "Répondre via IA",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        690,
+        300
+      ],
+      "parameters": {
+        "operation": "message",
+        "modelId": "mistral-large-latest",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es l'assistant virtuel du service scolarité d'un établissement post-bac. Réponds aux questions des étudiants à partir des informations générales connues (inscriptions, emploi du temps, bourses, examens, attestations, calendrier universitaire). Si la question dépasse tes connaissances, concerne un dossier individuel, ou nécessite une décision administrative, indique qu'un conseiller doit prendre le relais. Retourne UNIQUEMENT ce JSON :\n{\n  \"reponse\": \"string\",\n  \"confiance\": number (0 à 1),\n  \"categorie\": \"inscription\" | \"emploi_du_temps\" | \"bourse\" | \"examen\" | \"attestation\" | \"autre\",\n  \"necessite_humain\": boolean\n}"
+            },
+            {
+              "role": "user",
+              "content": "Question de l'étudiant : {{ $json.question }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 600
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0024-0024-0024-000000000004",
+      "name": "Parser réponse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        910,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const content = $input.item.json.message.content;\nlet r;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  r = JSON.parse(match[0]);\n} catch(e) {\n  r = { reponse: \"Je n'ai pas pu traiter votre demande, un conseiller va vous répondre.\", confiance: 0, categorie: 'autre', necessite_humain: true };\n}\nconst src = $('Sanitiser question').item.json;\nreturn { ...r, email: src.email, question: src.question };"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0024-0024-0024-000000000005",
+      "name": "Réponse fiable ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1130,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.confiance }}",
+              "rightValue": 0.7,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ $json.necessite_humain }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0024-0024-0024-000000000006",
+      "name": "Réponse automatique",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        200
+      ],
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseData": "={{ JSON.stringify({ type: 'automatique', reponse: $json.reponse, categorie: $json.categorie }) }}"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0024-0024-0024-000000000007",
+      "name": "Enregistrer pour escalade",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        400
+      ],
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "questions_scolarite",
+        "columns": "etudiant_email, question, reponse_ia, confiance, categorie, escalade",
+        "additionalFields": {
+          "escalade": true
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0024-0024-0024-000000000008",
+      "name": "Notifier conseiller",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        1590,
+        400
+      ],
+      "parameters": {
+        "operation": "sendMessage",
+        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
+        "channelId": "={{ $env.DISCORD_SCOLARITE_CHANNEL_ID }}",
+        "content": "🙋 **Question scolarité à traiter** (catégorie : {{ $json.categorie }})\n**De :** {{ $json.email || 'anonyme' }}\n**Question :** {{ $json.question }}\n**Proposition IA :** {{ $json.reponse }}"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0024-0024-0024-000000000009",
+      "name": "Réponse escalade",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1820,
+        400
+      ],
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseData": "={{ JSON.stringify({ type: 'escalade', message: 'Votre question a été transmise à un conseiller qui vous répondra rapidement.' }) }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Question": {
+      "main": [
+        [
+          {
+            "node": "Sanitiser question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitiser question": {
+      "main": [
+        [
+          {
+            "node": "Répondre via IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Répondre via IA": {
+      "main": [
+        [
+          {
+            "node": "Parser réponse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser réponse": {
+      "main": [
+        [
+          {
+            "node": "Réponse fiable ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse fiable ?": {
+      "main": [
+        [
+          {
+            "node": "Réponse automatique",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enregistrer pour escalade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enregistrer pour escalade": {
+      "main": [
+        [
+          {
+            "node": "Notifier conseiller",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notifier conseiller": {
+      "main": [
+        [
+          {
+            "node": "Réponse escalade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "a1b2c3d4-0024-0024-0024-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-education",
+      "name": "education"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    },
+    {
+      "id": "tag-p2",
+      "name": "priorite-2"
+    }
+  ]
+}

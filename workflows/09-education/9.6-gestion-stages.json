@@ -1,0 +1,268 @@
+{
+  "name": "9.6 – Gestion des offres de stage et matching IA",
+  "nodes": [
+    {
+      "id": "a1b2c3d4-0025-0025-0025-000000000001",
+      "name": "Webhook Offre de stage",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "offre-stage",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0025-0025-0025-000000000002",
+      "name": "Normaliser offre",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        470,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const o = $input.item.json.body || $input.item.json;\nconst clean = (s, max) => (s || '').toString().trim().substring(0, max || 255);\nconst emailRegex = /^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$/;\nconst contact = (o.contact_email || '').trim().toLowerCase();\nif (!emailRegex.test(contact)) throw new Error('Email contact entreprise invalide');\nreturn {\n  entreprise: clean(o.entreprise),\n  contact_email: contact,\n  intitule: clean(o.intitule),\n  formation_cible: clean(o.formation_cible || o.formation),\n  competences: clean(o.competences, 1000),\n  type_contrat: clean(o.type_contrat || 'stage', 50),\n  duree: clean(o.duree, 100),\n  description: clean(o.description, 3000)\n};"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0025-0025-0025-000000000003",
+      "name": "Enregistrer offre",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        690,
+        300
+      ],
+      "parameters": {
+        "operation": "insert",
+        "schema": "public",
+        "table": "offres_stage",
+        "columns": "entreprise, contact_email, intitule, formation_cible, competences, type_contrat, duree, description",
+        "additionalFields": {},
+        "options": {
+          "returnFields": "id, intitule, entreprise"
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0025-0025-0025-000000000004",
+      "name": "Étudiants disponibles",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        910,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, nom, prenom, email, formation, competences, recherche_stage\nFROM etudiants\nWHERE statut = 'actif'\n  AND recherche_stage = TRUE\n  AND formation = $1",
+        "additionalFields": {
+          "queryParams": "={{ [$('Normaliser offre').item.json.formation_cible] }}"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a1b2c3d4-0025-0025-0025-000000000005",
+      "name": "Agréger profils",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1130,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const etudiants = $input.all().map(i => ({ id: i.json.id, prenom: i.json.prenom, nom: i.json.nom, email: i.json.email, competences: i.json.competences }));\nreturn [{ json: { etudiants, nb: etudiants.length } }];"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0025-0025-0025-000000000006",
+      "name": "Matching IA",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        1350,
+        300
+      ],
+      "parameters": {
+        "operation": "message",
+        "modelId": "mistral-large-latest",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es chargé des relations entreprises d'un établissement post-bac. À partir d'une offre de stage/alternance et d'une liste d'étudiants en recherche, identifie les profils les plus pertinents. Retourne UNIQUEMENT ce JSON :\n{\n  \"matches\": [{ \"email\": \"string\", \"prenom\": \"string\", \"score\": number (0-100), \"justification\": \"string (max 120 caractères)\" }]\n}\nClasse par score décroissant, ne garde que les profils avec un score >= 50."
+            },
+            {
+              "role": "user",
+              "content": "OFFRE :\nIntitulé : {{ $('Normaliser offre').item.json.intitule }}\nCompétences attendues : {{ $('Normaliser offre').item.json.competences }}\nDescription : {{ $('Normaliser offre').item.json.description }}\n\nÉTUDIANTS DISPONIBLES :\n{{ JSON.stringify($json.etudiants, null, 2) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 1200
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0025-0025-0025-000000000007",
+      "name": "Parser matching",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1570,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const content = $input.item.json.message.content;\nlet data;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  data = JSON.parse(match[0]);\n} catch(e) { data = { matches: [] }; }\nconst offre = $('Normaliser offre').item.json;\nconst offreInfo = $('Enregistrer offre').item.json;\nconst matches = (data.matches || []).filter(m => m.score >= 50);\nreturn [{ json: { matches, nb_matches: matches.length, intitule: offre.intitule, entreprise: offre.entreprise, type_contrat: offre.type_contrat, duree: offre.duree, offre_id: offreInfo.id } }];"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0025-0025-0025-000000000008",
+      "name": "Notifier service stages",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        1790,
+        200
+      ],
+      "parameters": {
+        "operation": "sendMessage",
+        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
+        "channelId": "={{ $env.DISCORD_STAGES_CHANNEL_ID }}",
+        "content": "💼 **Nouvelle offre {{ $json.type_contrat }}** – {{ $json.entreprise }}\n**Poste :** {{ $json.intitule }} ({{ $json.duree }})\n**Profils étudiants compatibles :** {{ $json.nb_matches }}\n{{ $json.matches.map(m => `• ${m.prenom} – ${m.score}/100 (${m.justification})`).join('\\n') }}"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0025-0025-0025-000000000009",
+      "name": "Réponse webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1790,
+        400
+      ],
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseData": "={{ JSON.stringify({ success: true, offre_id: $json.offre_id, profils_compatibles: $json.nb_matches }) }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Offre de stage": {
+      "main": [
+        [
+          {
+            "node": "Normaliser offre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normaliser offre": {
+      "main": [
+        [
+          {
+            "node": "Enregistrer offre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enregistrer offre": {
+      "main": [
+        [
+          {
+            "node": "Étudiants disponibles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Étudiants disponibles": {
+      "main": [
+        [
+          {
+            "node": "Agréger profils",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agréger profils": {
+      "main": [
+        [
+          {
+            "node": "Matching IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Matching IA": {
+      "main": [
+        [
+          {
+            "node": "Parser matching",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser matching": {
+      "main": [
+        [
+          {
+            "node": "Notifier service stages",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Réponse webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "a1b2c3d4-0025-0025-0025-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-education",
+      "name": "education"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    },
+    {
+      "id": "tag-p2",
+      "name": "priorite-2"
+    }
+  ]
+}
