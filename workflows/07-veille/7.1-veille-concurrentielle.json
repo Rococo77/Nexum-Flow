@@ -48,12 +48,12 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        750,
+        850,
         300
       ],
       "parameters": {
         "method": "GET",
-        "url": "={{ $json }}",
+        "url": "={{ $json.concurrents }}",
         "options": {
           "timeout": 10000,
           "response": {
@@ -70,7 +70,7 @@
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
       "position": [
-        1000,
+        1100,
         300
       ],
       "parameters": {
@@ -100,7 +100,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1250,
+        1350,
         300
       ],
       "parameters": {
@@ -110,15 +110,15 @@
     {
       "id": "a1b2c3d4-0018-0018-0018-000000000006",
       "name": "Agréger tous les rapports",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        1500,
+        1600,
         300
       ],
       "parameters": {
-        "mode": "combineBySql",
-        "query": "SELECT * FROM input1"
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { rapports: $input.all().map(i => i.json) } }];"
       }
     },
     {
@@ -127,7 +127,7 @@
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
       "position": [
-        1750,
+        1850,
         300
       ],
       "parameters": {
@@ -141,7 +141,7 @@
             },
             {
               "role": "user",
-              "content": "Rapports concurrents:\n{{ JSON.stringify($input.all().map(i => i.json), null, 2) }}"
+              "content": "Rapports concurrents:\n{{ JSON.stringify($json.rapports, null, 2) }}"
             }
           ]
         },
@@ -157,7 +157,7 @@
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        2000,
+        2350,
         200
       ],
       "parameters": {
@@ -173,7 +173,7 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
       "position": [
-        2000,
+        2350,
         420
       ],
       "parameters": {
@@ -182,6 +182,20 @@
         "subject": "Veille Concurrentielle – {{ new Date().toLocaleDateString('fr-FR') }}",
         "emailType": "html",
         "message": "<html><body><h2>Rapport Veille Concurrentielle</h2><p>{{ $json.message.content.replace(/\\n/g, '<br>') }}</p></body></html>"
+      }
+    },
+    {
+      "id": "a1b2c3d4-0018-0018-0018-000000000010",
+      "name": "Diviser URLs concurrents",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ],
+      "parameters": {
+        "fieldToSplitOut": "concurrents",
+        "options": {}
       }
     }
   ],
@@ -201,7 +215,7 @@
       "main": [
         [
           {
-            "node": "Scraper chaque site",
+            "node": "Diviser URLs concurrents",
             "type": "main",
             "index": 0
           }
@@ -262,6 +276,17 @@
           },
           {
             "node": "Email rapport veille",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Diviser URLs concurrents": {
+      "main": [
+        [
+          {
+            "node": "Scraper chaque site",
             "type": "main",
             "index": 0
           }
