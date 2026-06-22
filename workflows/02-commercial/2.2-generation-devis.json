@@ -82,6 +82,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const aiContent = $input.item.json.message.content;\nlet devisData;\ntry {\n  const match = aiContent.match(/\\{[\\s\\S]*\\}/);\n  devisData = JSON.parse(match[0]);\n} catch(e) { throw new Error('Parsing IA impossible: ' + e.message); }\n\nconst lignes = devisData.lignes || [];\nconst totalHT = lignes.reduce((sum, l) => sum + (l.quantite * l.prix_unitaire), 0);\nconst tva = totalHT * 0.20;\nconst totalTTC = totalHT + tva;\n\nconst numero = 'DEV-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-6);\n\nreturn {\n  ...devisData,\n  numero,\n  client_id: $('Webhook Formulaire Devis').item.json.client_id,\n  montant_ht: Math.round(totalHT * 100) / 100,\n  montant_tva: Math.round(tva * 100) / 100,\n  montant_ttc: Math.round(totalTTC * 100) / 100,\n  date_emission: new Date().toISOString().split('T')[0],\n  date_validite: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],\n  client: $('Récupérer infos client').item.json\n};"
       }
     },

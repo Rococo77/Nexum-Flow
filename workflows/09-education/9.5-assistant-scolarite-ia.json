@@ -27,6 +27,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const b = $input.item.json.body || $input.item.json;\nconst MAX = 1000;\nconst sanitize = (s) => (s || '').toString().replace(/ignore (all |previous |above )/gi, '[filtré] ').substring(0, MAX);\nconst emailRegex = /^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$/;\nconst email = (b.email || '').trim().toLowerCase();\nreturn {\n  email: emailRegex.test(email) ? email : null,\n  question: sanitize(b.question)\n};"
       }
     },
@@ -70,6 +71,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const content = $input.item.json.message.content;\nlet r;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  r = JSON.parse(match[0]);\n} catch(e) {\n  r = { reponse: \"Je n'ai pas pu traiter votre demande, un conseiller va vous répondre.\", confiance: 0, categorie: 'autre', necessite_humain: true };\n}\nconst src = $('Sanitiser question').item.json;\nreturn { ...r, email: src.email, question: src.question };"
       }
     },

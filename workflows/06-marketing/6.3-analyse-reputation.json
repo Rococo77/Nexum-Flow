@@ -97,7 +97,8 @@
         300
       ],
       "parameters": {
-        "jsCode": "const google = $('Scraper avis Google Places').item.json.result || {};\nconst googleReviews = (google.reviews || []).slice(0, 10);\nconst noteGoogle = google.rating || 0;\nconst nbAvisGoogle = google.user_ratings_total || 0;\n\nconst trustpilot = $('Récupérer avis Trustpilot').item.json || {};\nconst noteTrustpilot = trustpilot.score?.trustScore || 0;\nconst nbAvisTrustpilot = trustpilot.numberOfReviews?.total || 0;\n\nconst tousLesAvis = [\n  ...googleReviews.map(r => ({ source: 'Google', auteur: r.author_name, note: r.rating, texte: r.text, date: new Date(r.time * 1000).toISOString() })),\n];\n\nconst noteGlobale = (noteGoogle * nbAvisGoogle + noteTrustpilot * nbAvisTrustpilot) / Math.max(nbAvisGoogle + nbAvisTrustpilot, 1);\n\nreturn {\n  note_google: noteGoogle,\n  nb_avis_google: nbAvisGoogle,\n  note_trustpilot: noteTrustpilot,\n  nb_avis_trustpilot: nbAvisTrustpilot,\n  note_globale: Math.round(noteGlobale * 10) / 10,\n  total_avis: nbAvisGoogle + nbAvisTrustpilot,\n  avis_recents: tousLesAvis,\n  periode_analyse: new Date().toLocaleDateString('fr-FR')\n};"
+        "mode": "runOnceForAllItems",
+        "jsCode": "const google = $('Scraper avis Google Places').first().json.result || {};\nconst googleReviews = (google.reviews || []).slice(0, 10);\nconst noteGoogle = google.rating || 0;\nconst nbAvisGoogle = google.user_ratings_total || 0;\n\nconst trustpilot = $('Récupérer avis Trustpilot').first().json || {};\nconst noteTrustpilot = trustpilot.score?.trustScore || 0;\nconst nbAvisTrustpilot = trustpilot.numberOfReviews?.total || 0;\n\nconst tousLesAvis = [\n  ...googleReviews.map(r => ({ source: 'Google', auteur: r.author_name, note: r.rating, texte: r.text, date: new Date(r.time * 1000).toISOString() })),\n];\n\nconst noteGlobale = (noteGoogle * nbAvisGoogle + noteTrustpilot * nbAvisTrustpilot) / Math.max(nbAvisGoogle + nbAvisTrustpilot, 1);\n\nreturn {\n  note_google: noteGoogle,\n  nb_avis_google: nbAvisGoogle,\n  note_trustpilot: noteTrustpilot,\n  nb_avis_trustpilot: nbAvisTrustpilot,\n  note_globale: Math.round(noteGlobale * 10) / 10,\n  total_avis: nbAvisGoogle + nbAvisTrustpilot,\n  avis_recents: tousLesAvis,\n  periode_analyse: new Date().toLocaleDateString('fr-FR')\n};"
       }
     },
     {
@@ -140,6 +141,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const content = $input.item.json.message.content;\nlet analyse;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  analyse = JSON.parse(match[0]);\n} catch(e) { analyse = { sentiment_global: 'neutre', resume_executif: content }; }\nreturn { ...analyse, data: $('Consolider avis').item.json };"
       }
     },

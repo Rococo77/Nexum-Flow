@@ -27,6 +27,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const c = $input.item.json.body || $input.item.json;\nconst emailRegex = /^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$/;\nconst email = (c.email || '').trim().toLowerCase();\nif (!emailRegex.test(email)) throw new Error('Email candidat invalide');\nconst clean = (s, max) => (s || '').toString().trim().substring(0, max || 255);\nreturn {\n  nom: clean(c.nom),\n  prenom: clean(c.prenom),\n  email,\n  telephone: clean(c.telephone, 50),\n  formation_visee: clean(c.formation_visee || c.formation),\n  bac_serie: clean(c.bac_serie, 50),\n  bac_mention: clean(c.bac_mention, 50),\n  moyenne_generale: parseFloat(c.moyenne_generale) || null,\n  lettre_motivation: clean(c.lettre_motivation, 5000),\n  source: clean(c.source || 'site', 50)\n};"
       }
     },
@@ -70,6 +71,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const content = $input.item.json.message.content;\nlet eval;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  eval = JSON.parse(match[0]);\n} catch(e) {\n  eval = { score: 0, adequation_formation: 'moyenne', points_forts: [], points_vigilance: ['Analyse automatique impossible'], recommandation: 'entretien', commentaire: 'À évaluer manuellement' };\n}\nconst c = $('Normaliser et valider').item.json;\nconst statutMap = { admission_directe: 'admis', entretien: 'entretien', liste_attente: 'liste_attente', refus: 'refuse' };\nreturn { ...c, score: eval.score, adequation: eval.adequation_formation, recommandation: eval.recommandation, statut: statutMap[eval.recommandation] || 'en_evaluation', commentaire_ia: eval.commentaire, points_forts: (eval.points_forts || []).join(' | ') };"
       }
     },

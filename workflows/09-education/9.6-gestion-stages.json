@@ -27,6 +27,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const o = $input.item.json.body || $input.item.json;\nconst clean = (s, max) => (s || '').toString().trim().substring(0, max || 255);\nconst emailRegex = /^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$/;\nconst contact = (o.contact_email || '').trim().toLowerCase();\nif (!emailRegex.test(contact)) throw new Error('Email contact entreprise invalide');\nreturn {\n  entreprise: clean(o.entreprise),\n  contact_email: contact,\n  intitule: clean(o.intitule),\n  formation_cible: clean(o.formation_cible || o.formation),\n  competences: clean(o.competences, 1000),\n  type_contrat: clean(o.type_contrat || 'stage', 50),\n  duree: clean(o.duree, 100),\n  description: clean(o.description, 3000)\n};"
       }
     },
@@ -122,6 +123,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const content = $input.item.json.message.content;\nlet data;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  data = JSON.parse(match[0]);\n} catch(e) { data = { matches: [] }; }\nconst offre = $('Normaliser offre').item.json;\nconst offreInfo = $('Enregistrer offre').item.json;\nconst matches = (data.matches || []).filter(m => m.score >= 50);\nreturn [{ json: { matches, nb_matches: matches.length, intitule: offre.intitule, entreprise: offre.entreprise, type_contrat: offre.type_contrat, duree: offre.duree, offre_id: offreInfo.id } }];"
       }
     },

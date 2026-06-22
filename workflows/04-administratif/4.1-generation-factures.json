@@ -27,6 +27,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const crypto = require('crypto');\nconst rawBody = $input.item.binary?.data\n  ? Buffer.from($input.item.binary.data, 'base64').toString('utf8')\n  : JSON.stringify($input.item.json);\nconst sig = $input.item.json.headers?.['stripe-signature'] || '';\nconst secret = process.env.STRIPE_WEBHOOK_SECRET || '';\n\nif (!secret) throw new Error('STRIPE_WEBHOOK_SECRET manquant');\nif (!sig) throw new Error('En-tête stripe-signature absent');\n\nconst parts = sig.split(',').reduce((acc, part) => {\n  const [k, v] = part.split('=');\n  acc[k] = v;\n  return acc;\n}, {});\n\nconst timestamp = parts['t'];\nconst v1 = parts['v1'];\nif (!timestamp || !v1) throw new Error('Signature Stripe malformée');\n\nconst tolerance = 300; // 5 minutes\nif (Math.abs(Date.now() / 1000 - Number(timestamp)) > tolerance)\n  throw new Error('Timestamp Stripe trop ancien (replay attack)');\n\nconst signedPayload = `${timestamp}.${rawBody}`;\nconst expected = crypto\n  .createHmac('sha256', secret)\n  .update(signedPayload, 'utf8')\n  .digest('hex');\n\nif (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1)))\n  throw new Error('Signature Stripe invalide');\n\nreturn $input.item.json;"
       }
     },
@@ -84,6 +85,7 @@
         200
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const now = new Date();\nconst annee = now.getFullYear();\nconst mois = String(now.getMonth() + 1).padStart(2, '0');\nconst timestamp = String(Date.now()).slice(-4);\nconst numero = `FACT-${annee}${mois}-${timestamp}`;\nconst montantHT = $input.item.json.montant_ht || ($('Webhook Paiement reçu (Stripe)').item.json.data.object.amount / 100 / 1.20);\nconst montantTVA = montantHT * 0.20;\nconst montantTTC = montantHT + montantTVA;\n\nreturn {\n  ...($input.item.json),\n  numero_facture: numero,\n  montant_ht: Math.round(montantHT * 100) / 100,\n  montant_tva: Math.round(montantTVA * 100) / 100,\n  montant_ttc: Math.round(montantTTC * 100) / 100,\n  date_emission: now.toISOString().split('T')[0],\n  date_echeance: now.toISOString().split('T')[0]\n};"
       }
     },

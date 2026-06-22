@@ -76,6 +76,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const content = $input.item.json.message.content;\nlet analyse;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  analyse = JSON.parse(match[0]);\n} catch(e) {\n  analyse = { resume_pipeline: content, top5: [], ca_potentiel: 0, prospects_risque: [], recommandations: [] };\n}\nreturn analyse;"
       }
     },

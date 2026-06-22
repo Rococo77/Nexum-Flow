@@ -69,6 +69,7 @@
         460
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const item = $input.item.json;\nconst source = $node.name.includes('Gmail') ? 'email'\n  : $node.name.includes('WhatsApp') ? 'whatsapp'\n  : 'formulaire';\n\nreturn {\n  source,\n  nom: item.nom || item.last_name || item.name?.split(' ')[1] || '',\n  prenom: item.prenom || item.first_name || item.name?.split(' ')[0] || '',\n  email: item.email || item.from || '',\n  telephone: item.telephone || item.phone || '',\n  entreprise: item.entreprise || item.company || '',\n  message: item.message || item.body || item.text || '',\n  date_reception: new Date().toISOString()\n};"
       }
     },

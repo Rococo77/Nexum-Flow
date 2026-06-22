@@ -73,6 +73,7 @@
         200
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const rawNom = $('Enregistrer client en base').item.json.entreprise || $('Enregistrer client en base').item.json.nom || 'client';\nconst clientNom = rawNom.replace(/[^a-zA-Z0-9À-ÿ_\\- ]/g, '_').replace(/\\.\\./g, '_').substring(0, 100);\nconst clientId = $('Enregistrer client en base').item.json.id;\nconst sousDossiers = ['Contrats', 'Factures', 'Documents', 'Photos', 'Correspondances', 'Technique'];\nreturn sousDossiers.map(dossier => ({\n  chemin: `Clients/${clientNom}/${dossier}`,\n  client_id: clientId,\n  nom_dossier: dossier\n}));"
       }
     },

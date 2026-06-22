@@ -75,6 +75,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const content = $input.item.json.message.content;\nlet article;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  article = JSON.parse(match[0]);\n} catch(e) {\n  article = {\n    titre: 'Nouveau projet web réalisé',\n    meta_description: 'Découvrez notre dernier projet de développement web.',\n    slug: 'projet-web-' + Date.now(),\n    mots_cles: ['développement web', 'automatisation'],\n    contenu: content,\n    extrait: content.substring(0, 300)\n  };\n}\nreturn {\n  ...article,\n  client_id: $('Webhook Projet terminé').item.json.client_id,\n  date_creation: new Date().toISOString()\n};"
       }
     },

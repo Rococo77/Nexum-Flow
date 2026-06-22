@@ -47,7 +47,8 @@
         300
       ],
       "parameters": {
-        "jsCode": "const evenements = $input.all().map(i => i.json);\nconst creneauxProposes = [];\nconst maintenant = new Date();\n\nfor (let j = 1; j <= 14; j++) {\n  const date = new Date(maintenant);\n  date.setDate(date.getDate() + j);\n  if ([0, 6].includes(date.getDay())) continue;\n\n  const creneaux = [\n    { heure: 9, duree: 60 },\n    { heure: 11, duree: 60 },\n    { heure: 14, duree: 60 },\n    { heure: 16, duree: 60 }\n  ];\n\n  for (const creneau of creneaux) {\n    const debut = new Date(date);\n    debut.setHours(creneau.heure, 0, 0, 0);\n    const fin = new Date(debut);\n    fin.setMinutes(fin.getMinutes() + creneau.duree);\n\n    const occupe = evenements.some(e => {\n      const eDebut = new Date(e.start?.dateTime || e.start?.date);\n      const eFin = new Date(e.end?.dateTime || e.end?.date);\n      return debut < eFin && fin > eDebut;\n    });\n\n    if (!occupe && creneauxProposes.length < 5) {\n      creneauxProposes.push({\n        debut: debut.toISOString(),\n        fin: fin.toISOString(),\n        label: debut.toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })\n      });\n    }\n  }\n}\n\nreturn {\n  creneaux: creneauxProposes,\n  demandeur: $('Webhook Demande RDV').item.json\n};"
+        "mode": "runOnceForAllItems",
+        "jsCode": "const evenements = $input.all().map(i => i.json);\nconst creneauxProposes = [];\nconst maintenant = new Date();\n\nfor (let j = 1; j <= 14; j++) {\n  const date = new Date(maintenant);\n  date.setDate(date.getDate() + j);\n  if ([0, 6].includes(date.getDay())) continue;\n\n  const creneaux = [\n    { heure: 9, duree: 60 },\n    { heure: 11, duree: 60 },\n    { heure: 14, duree: 60 },\n    { heure: 16, duree: 60 }\n  ];\n\n  for (const creneau of creneaux) {\n    const debut = new Date(date);\n    debut.setHours(creneau.heure, 0, 0, 0);\n    const fin = new Date(debut);\n    fin.setMinutes(fin.getMinutes() + creneau.duree);\n\n    const occupe = evenements.some(e => {\n      const eDebut = new Date(e.start?.dateTime || e.start?.date);\n      const eFin = new Date(e.end?.dateTime || e.end?.date);\n      return debut < eFin && fin > eDebut;\n    });\n\n    if (!occupe && creneauxProposes.length < 5) {\n      creneauxProposes.push({\n        debut: debut.toISOString(),\n        fin: fin.toISOString(),\n        label: debut.toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })\n      });\n    }\n  }\n}\n\nreturn {\n  creneaux: creneauxProposes,\n  demandeur: $('Webhook Demande RDV').first().json\n};"
       }
     },
     {
@@ -93,6 +94,7 @@
         500
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const query = $input.item.json.query || {};\nconst email = (query.client || '').trim();\nconst creneau = (query.creneau || '').trim();\n\n// Validation email format\nconst emailRegex = /^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$/;\nif (!emailRegex.test(email)) throw new Error('Email de confirmation invalide');\n\n// Validation créneau : doit être une date ISO future\nconst dateRdv = new Date(creneau);\nif (isNaN(dateRdv.getTime())) throw new Error('Créneau invalide');\nif (dateRdv < new Date()) throw new Error('Créneau dans le passé');\nif (dateRdv > new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) throw new Error('Créneau trop éloigné');\n\nreturn { email_valide: email, creneau_valide: dateRdv.toISOString() };"
       }
     },

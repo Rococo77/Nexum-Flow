@@ -45,6 +45,7 @@
         400
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const cand = $input.item.json;\nconst body = $('Webhook Décision').item.json.body || $('Webhook Décision').item.json;\nconst decision = (body.decision || '').toLowerCase();\nconst valides = ['admis', 'entretien', 'liste_attente', 'refuse'];\nif (!valides.includes(decision)) throw new Error('Décision invalide : ' + decision);\nreturn { ...cand, decision, date_entretien: body.date_entretien || null };"
       }
     },

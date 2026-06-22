@@ -144,7 +144,8 @@
         320
       ],
       "parameters": {
-        "jsCode": "const github = $('GitHub – Trending repos').item.json.items || [];\nconst hn = $('Hacker News – Top stories').item.json.hits || [];\nconst devto = $('Dev.to – Articles techniques').item.json;\nconst devtoItems = Array.isArray(devto) ? devto : [];\n\nconst githubFormate = github.slice(0, 5).map(r => ({\n  source: 'GitHub',\n  titre: r.full_name,\n  description: r.description,\n  url: r.html_url,\n  stars: r.stargazers_count,\n  langage: r.language\n}));\n\nconst hnFormate = hn.slice(0, 5).map(h => ({\n  source: 'Hacker News',\n  titre: h.title,\n  url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,\n  points: h.points,\n  commentaires: h.num_comments\n}));\n\nconst devtoFormate = devtoItems.slice(0, 5).map(a => ({\n  source: 'Dev.to',\n  titre: a.title,\n  url: a.url,\n  tags: (a.tag_list || []).join(', '),\n  reactions: a.public_reactions_count\n}));\n\nreturn {\n  github: githubFormate,\n  hackernews: hnFormate,\n  devto: devtoFormate,\n  total: githubFormate.length + hnFormate.length + devtoFormate.length\n};"
+        "mode": "runOnceForAllItems",
+        "jsCode": "const github = $('GitHub – Trending repos').first().json.items || [];\nconst hn = $('Hacker News – Top stories').first().json.hits || [];\nconst devto = $('Dev.to – Articles techniques').first().json;\nconst devtoItems = Array.isArray(devto) ? devto : [];\n\nconst githubFormate = github.slice(0, 5).map(r => ({\n  source: 'GitHub',\n  titre: r.full_name,\n  description: r.description,\n  url: r.html_url,\n  stars: r.stargazers_count,\n  langage: r.language\n}));\n\nconst hnFormate = hn.slice(0, 5).map(h => ({\n  source: 'Hacker News',\n  titre: h.title,\n  url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,\n  points: h.points,\n  commentaires: h.num_comments\n}));\n\nconst devtoFormate = devtoItems.slice(0, 5).map(a => ({\n  source: 'Dev.to',\n  titre: a.title,\n  url: a.url,\n  tags: (a.tag_list || []).join(', '),\n  reactions: a.public_reactions_count\n}));\n\nreturn {\n  github: githubFormate,\n  hackernews: hnFormate,\n  devto: devtoFormate,\n  total: githubFormate.length + hnFormate.length + devtoFormate.length\n};"
       }
     },
     {
@@ -187,6 +188,7 @@
         320
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const sources = $('Consolider sources').item.json;\nconst analyse = $input.item.json.message.content;\nconst date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });\n\nconst githubList = sources.github.map(r => `• [${r.titre}](${r.url}) – ${r.stars}⭐ (${r.langage || 'N/A'})`).join('\\n');\nconst hnList = sources.hackernews.map(h => `• [${h.titre}](${h.url}) – ${h.points} pts`).join('\\n');\nconst devtoList = (sources.devto || []).map(a => `• [${a.titre}](${a.url}) – ${a.tags}`).join('\\n');\n\nreturn {\n  date,\n  analyse,\n  sources,\n  rapport_discord: `🔭 **VEILLE TECH – ${date}**\\n\\n🤖 **Analyse IA :**\\n${analyse}\\n\\n**GitHub Trending :**\\n${githubList}\\n\\n**Hacker News :**\\n${hnList}\\n\\n**Dev.to :**\\n${devtoList}`\n};"
       }
     },
@@ -253,7 +255,7 @@
             "index": 0
           },
           {
-            "node": "Reddit – r/n8n et r/selfhosted",
+            "node": "Dev.to – Articles techniques",
             "type": "main",
             "index": 0
           }

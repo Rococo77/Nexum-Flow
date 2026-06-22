@@ -91,6 +91,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const aiResponse = $input.item.json.message.content;\nlet qualification;\ntry {\n  const jsonMatch = aiResponse.match(/\\{[\\s\\S]*\\}/);\n  qualification = JSON.parse(jsonMatch[0]);\n} catch(e) {\n  qualification = {\n    type_client: 'Inconnu',\n    budget_estime: 'Inconnu',\n    priorite: 'normale',\n    probabilite_signature: 30,\n    score: 30,\n    points_forts: [],\n    points_attention: ['Analyse impossible'],\n    action_recommandee: 'Contacter manuellement'\n  };\n}\nreturn {\n  lead_id: $('Nouveau lead (Postgres trigger)').item.json.id,\n  email: $('Nouveau lead (Postgres trigger)').item.json.email,\n  prenom: $('Nouveau lead (Postgres trigger)').item.json.prenom,\n  nom: $('Nouveau lead (Postgres trigger)').item.json.nom,\n  ...qualification\n};"
       }
     },

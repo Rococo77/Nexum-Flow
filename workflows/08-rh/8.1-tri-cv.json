@@ -92,6 +92,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const content = $input.item.json.message.content;\nlet analyse;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  analyse = JSON.parse(match[0]);\n} catch(e) {\n  analyse = { prenom_nom: 'Inconnu', score_adequation: 0, recommandation: 'liste_attente', raison_decision: 'Analyse impossible' };\n}\nreturn {\n  ...analyse,\n  email_original: $('Gmail Trigger – CV reçus').item.json.from,\n  date_reception: new Date().toISOString()\n};"
       }
     },

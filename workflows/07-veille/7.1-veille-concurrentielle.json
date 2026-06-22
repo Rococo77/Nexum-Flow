@@ -104,6 +104,7 @@
         300
       ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const content = $input.item.json.message.content;\nlet analyse;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  analyse = JSON.parse(match[0]);\n} catch(e) { analyse = { resume: content, url: '' }; }\nreturn analyse;"
       }
     },
