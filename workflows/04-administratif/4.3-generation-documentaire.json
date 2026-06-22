@@ -105,7 +105,7 @@
       ],
       "parameters": {
         "operation": "message",
-        "modelId": "gpt-4o",
+        "modelId": "mistral-large-latest",
         "messages": {
           "values": [
             {
