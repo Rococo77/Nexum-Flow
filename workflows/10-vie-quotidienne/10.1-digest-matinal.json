@@ -64,7 +64,6 @@
       "position": [520, 300],
       "parameters": {
         "mode": "combine",
-        "combinationMode": "multiplex",
         "options": {}
       }
     },
@@ -76,7 +75,7 @@
       "position": [740, 300],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const meteo = $('Météo du jour').item.json;\nconst hnIds = $('Hacker News top stories').item.json;\nconst articles = $('Actualités RSS').all().slice(0, 5);\n\nconst temp = meteo.current_condition?.[0]?.temp_C || '?';\nconst desc = meteo.current_condition?.[0]?.weatherDesc?.[0]?.value || '?';\nconst lieu = $env.VILLE_DOMICILE || 'Paris';\n\nconst topHN = Array.isArray(hnIds) ? hnIds.slice(0, 5).join(', ') : '';\n\nconst titresActu = articles.map(a => `- ${a.json.title || ''}`).join('\\n');\n\nreturn [{\n  json: {\n    meteo: `${lieu} : ${temp}°C, ${desc}`,\n    hn_ids: topHN,\n    actualites: titresActu,\n    date: new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })\n  }\n}];"
+        "jsCode": "const meteo = $('Météo du jour').first().json;\nconst hnIds = $('Hacker News top stories').first().json;\nconst articles = $('Actualités RSS').all().slice(0, 5);\n\nconst temp = meteo.current_condition?.[0]?.temp_C || '?';\nconst desc = meteo.current_condition?.[0]?.weatherDesc?.[0]?.value || '?';\nconst lieu = $env.VILLE_DOMICILE || 'Paris';\n\nconst topHN = Array.isArray(hnIds) ? hnIds.slice(0, 5).join(', ') : '';\n\nconst titresActu = articles.map(a => `- ${a.json.title || ''}`).join('\\n');\n\nreturn [{\n  json: {\n    meteo: `${lieu} : ${temp}°C, ${desc}`,\n    hn_ids: topHN,\n    actualites: titresActu,\n    date: new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })\n  }\n}];"
       }
     },
     {

@@ -1,0 +1,156 @@
+{
+  "name": "11.2 – Détection de churn client",
+  "nodes": [
+    {
+      "id": "c1c2c3c4-1102-1102-1102-000000000001",
+      "name": "Chaque lundi à 7h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [100, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 7 * * 1" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c1c2c3c4-1102-1102-1102-000000000002",
+      "name": "Indicateurs clients",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [320, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT c.id, c.nom, c.email, c.entreprise, EXTRACT(DAY FROM NOW() - COALESCE(MAX(rv.date_debut), c.created_at))::int AS jours_sans_contact, COUNT(DISTINCT f.id) FILTER (WHERE f.statut = 'en_retard') AS factures_retard, COUNT(DISTINCT e.id) FILTER (WHERE e.classification = 'reclamation' AND e.traite_at > NOW() - INTERVAL '90 days') AS reclamations_90j FROM clients c LEFT JOIN rendez_vous rv ON rv.client_id = c.id LEFT JOIN factures f ON f.client_id = c.id LEFT JOIN emails_traites e ON e.expediteur = c.email WHERE c.statut = 'actif' GROUP BY c.id, c.nom, c.email, c.entreprise, c.created_at"
+      }
+    },
+    {
+      "id": "c1c2c3c4-1102-1102-1102-000000000003",
+      "name": "Calculer score risque",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [540, 300],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const c = $input.item.json;\nlet score = 0;\nconst facteurs = [];\nconst jours = parseInt(c.jours_sans_contact) || 0;\nif (jours > 90) { score += 40; facteurs.push(`Aucun contact depuis ${jours} jours`); }\nelse if (jours > 60) { score += 25; facteurs.push(`Contact espacé (${jours} jours)`); }\nelse if (jours > 30) { score += 10; facteurs.push(`${jours} jours sans rendez-vous`); }\nconst fr = parseInt(c.factures_retard) || 0;\nif (fr > 0) { score += Math.min(30, fr * 15); facteurs.push(`${fr} facture(s) en retard`); }\nconst rec = parseInt(c.reclamations_90j) || 0;\nif (rec > 0) { score += Math.min(30, rec * 15); facteurs.push(`${rec} réclamation(s) sur 90 jours`); }\nconst niveau = score >= 60 ? 'eleve' : score >= 30 ? 'moyen' : 'faible';\nreturn { json: { ...c, score_risque: score, niveau, facteurs: facteurs.join(' ; ') || 'RAS' } };"
+      }
+    },
+    {
+      "id": "c1c2c3c4-1102-1102-1102-000000000004",
+      "name": "Risque élevé ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [760, 300],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.score_risque }}",
+              "rightValue": 60,
+              "operator": { "type": "number", "operation": "gte" }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c1c2c3c4-1102-1102-1102-000000000005",
+      "name": "Plan de rétention IA",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [980, 220],
+      "parameters": {
+        "operation": "message",
+        "modelId": "mistral-large-latest",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es responsable de la relation client d'une agence web. Pour un client à risque de départ, propose UNIQUEMENT ce JSON :\n{\n  \"diagnostic\": \"string (1-2 phrases)\",\n  \"actions\": [\"string (3 actions concrètes priorisées)\"],\n  \"message_suggere\": \"string (proposition de message court à envoyer au client)\"\n}"
+            },
+            {
+              "role": "user",
+              "content": "=Client : {{ $json.entreprise || $json.nom }}\nScore de risque : {{ $json.score_risque }}/100 ({{ $json.niveau }})\nFacteurs : {{ $json.facteurs }}"
+            }
+          ]
+        },
+        "options": { "temperature": 0.4, "maxTokens": 500 }
+      }
+    },
+    {
+      "id": "c1c2c3c4-1102-1102-1102-000000000006",
+      "name": "Parser plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 220],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const content = $input.item.json.message.content;\nconst src = $('Calculer score risque').item.json;\nlet ai;\ntry { ai = JSON.parse(content.match(/\\{[\\s\\S]*\\}/)[0]); }\ncatch(e) { ai = { diagnostic: 'Analyse indisponible', actions: [], message_suggere: '' }; }\nreturn { json: { ...src, diagnostic: ai.diagnostic, actions: (ai.actions || []).join(' | '), message_suggere: ai.message_suggere } };"
+      }
+    },
+    {
+      "id": "c1c2c3c4-1102-1102-1102-000000000007",
+      "name": "Historiser score",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1420, 220],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO churn_scores (client_id, score_risque, niveau, facteurs, diagnostic, actions) VALUES ($1, $2, $3, $4, $5, $6)",
+        "queryParams": "={{ [$json.id, $json.score_risque, $json.niveau, $json.facteurs, $json.diagnostic, $json.actions] }}"
+      }
+    },
+    {
+      "id": "c1c2c3c4-1102-1102-1102-000000000008",
+      "name": "Alerte commercial",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [1640, 220],
+      "parameters": {
+        "operation": "sendMessage",
+        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
+        "channelId": "={{ $env.DISCORD_COMMERCIAL_CHANNEL_ID }}",
+        "content": "=⚠️ **Risque de churn élevé** — {{ $json.entreprise || $json.nom }} ({{ $json.score_risque }}/100)\n**Diagnostic :** {{ $json.diagnostic }}\n**Actions :** {{ $json.actions }}\n**Message suggéré :** {{ $json.message_suggere }}"
+      }
+    }
+  ],
+  "connections": {
+    "Chaque lundi à 7h": {
+      "main": [[{ "node": "Indicateurs clients", "type": "main", "index": 0 }]]
+    },
+    "Indicateurs clients": {
+      "main": [[{ "node": "Calculer score risque", "type": "main", "index": 0 }]]
+    },
+    "Calculer score risque": {
+      "main": [[{ "node": "Risque élevé ?", "type": "main", "index": 0 }]]
+    },
+    "Risque élevé ?": {
+      "main": [
+        [{ "node": "Plan de rétention IA", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Plan de rétention IA": {
+      "main": [[{ "node": "Parser plan", "type": "main", "index": 0 }]]
+    },
+    "Parser plan": {
+      "main": [[{ "node": "Historiser score", "type": "main", "index": 0 }]]
+    },
+    "Historiser score": {
+      "main": [[{ "node": "Alerte commercial", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "c1c2c3c4-1102-1102-1102-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "tags": [
+    { "id": "tag-pilotage", "name": "pilotage" },
+    { "id": "tag-ia", "name": "ia" }
+  ]
+}

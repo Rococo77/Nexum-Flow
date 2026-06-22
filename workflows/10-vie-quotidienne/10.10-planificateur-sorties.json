@@ -1,0 +1,100 @@
+{
+  "name": "10.10 – Planificateur de sorties week-end",
+  "nodes": [
+    {
+      "id": "b1b2c3d4-1010-1010-1010-000000000001",
+      "name": "Chaque jeudi 18h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [100, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 18 * * 4" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1010-1010-1010-000000000002",
+      "name": "Flux agenda local",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [320, 300],
+      "parameters": {
+        "url": "={{ $env.AGENDA_SORTIES_URL || 'https://www.sortiraparis.com/feed' }}"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1010-1010-1010-000000000003",
+      "name": "Limiter et nettoyer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [540, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().slice(0, 25).map(i => i.json);\nconst clean = s => (s || '').toString().replace(/<[^>]*>/g, ' ').replace(/\\s{2,}/g, ' ').trim();\nconst liste = items.map((e, idx) => `${idx + 1}. ${clean(e.title)} — ${clean(e.contentSnippet || e.content || '').substring(0, 200)} [${e.link || ''}]`).join('\\n');\nreturn [{ json: { liste, nb: items.length } }];"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1010-1010-1010-000000000004",
+      "name": "Curation IA",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [760, 300],
+      "parameters": {
+        "operation": "message",
+        "modelId": "mistral-large-latest",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es un concierge de sorties. À partir d'une liste d'événements, sélectionne et recommande les 3 à 5 plus pertinents selon les préférences de l'utilisateur. Réponds en HTML : pour chacun, titre, pourquoi c'est recommandé (1 phrase), et le lien. Ton enthousiaste. Si rien ne correspond, propose les plus intéressants quand même."
+            },
+            { "role": "user", "content": "=Préférences : {{ $env.PREFERENCES_SORTIES || 'concerts, expositions, restaurants, événements en plein air' }}\n\nÉvénements disponibles :\n{{ $json.liste }}" }
+          ]
+        },
+        "options": { "temperature": 0.6, "maxTokens": 800 }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1010-1010-1010-000000000005",
+      "name": "Email suggestions",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [980, 300],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $env.EMAIL_PERSO }}",
+        "subject": "=🎉 Vos idées de sorties pour le week-end",
+        "emailType": "html",
+        "message": "=<html><body><h2>Idées pour votre week-end</h2>{{ $json.message.content }}<hr><p style='color:#888;font-size:12px'>Sélection établie parmi {{ $('Limiter et nettoyer').item.json.nb }} événements.</p></body></html>"
+      }
+    }
+  ],
+  "connections": {
+    "Chaque jeudi 18h": {
+      "main": [[{ "node": "Flux agenda local", "type": "main", "index": 0 }]]
+    },
+    "Flux agenda local": {
+      "main": [[{ "node": "Limiter et nettoyer", "type": "main", "index": 0 }]]
+    },
+    "Limiter et nettoyer": {
+      "main": [[{ "node": "Curation IA", "type": "main", "index": 0 }]]
+    },
+    "Curation IA": {
+      "main": [[{ "node": "Email suggestions", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "b1b2c3d4-1010-1010-1010-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "tags": [
+    { "id": "tag-vie-quotidienne", "name": "vie-quotidienne" },
+    { "id": "tag-ia", "name": "ia" }
+  ]
+}

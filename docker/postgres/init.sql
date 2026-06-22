@@ -308,3 +308,125 @@ CREATE INDEX IF NOT EXISTS idx_depenses_categorie ON depenses(categorie);
 CREATE INDEX IF NOT EXISTS idx_produits_actif ON produits_surveilles(actif);
 CREATE INDEX IF NOT EXISTS idx_articles_lu ON articles_personnels(lu);
 CREATE INDEX IF NOT EXISTS idx_courses_semaine ON liste_courses(semaine);
+
+-- Journal & suivi d'humeur (10.8)
+CREATE TABLE IF NOT EXISTS journal_perso (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    date DATE DEFAULT CURRENT_DATE,
+    humeur INTEGER CHECK (humeur BETWEEN 1 AND 5),
+    note TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Activités sportives (10.9)
+CREATE TABLE IF NOT EXISTS activites_sport (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    type VARCHAR(50) DEFAULT 'autre',
+    duree_min INTEGER NOT NULL,
+    distance_km DECIMAL(6,2),
+    ressenti VARCHAR(100),
+    date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Échéances administratives détectées (10.7)
+CREATE TABLE IF NOT EXISTS echeances_admin (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    message_id VARCHAR(255) UNIQUE,
+    type VARCHAR(50),
+    libelle VARCHAR(255),
+    montant DECIMAL(10,2),
+    date_echeance DATE,
+    action VARCHAR(300),
+    expediteur VARCHAR(255),
+    statut VARCHAR(50) DEFAULT 'a_traiter',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Documents capturés par OCR (10.12)
+CREATE TABLE IF NOT EXISTS documents_perso (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    type VARCHAR(50),
+    titre VARCHAR(255),
+    emetteur VARCHAR(255),
+    date_doc DATE,
+    montant DECIMAL(10,2),
+    infos_cles TEXT[],
+    contenu_ocr TEXT,
+    image_url VARCHAR(1000),
+    a_conserver BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_journal_date ON journal_perso(date);
+CREATE INDEX IF NOT EXISTS idx_sport_date ON activites_sport(date);
+CREATE INDEX IF NOT EXISTS idx_echeances_date ON echeances_admin(date_echeance);
+CREATE INDEX IF NOT EXISTS idx_documents_type ON documents_perso(type);
+
+-- ============================================================
+-- 11 – Pilotage (projets, churn, veille marchés)
+-- ============================================================
+
+-- Projets
+CREATE TABLE IF NOT EXISTS projets (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nom VARCHAR(255) NOT NULL,
+    client VARCHAR(255),
+    client_id UUID REFERENCES clients(id),
+    deadline DATE,
+    statut VARCHAR(50) DEFAULT 'en_cours',
+    avancement INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Tâches (11.1, alimentées aussi par 11.3)
+CREATE TABLE IF NOT EXISTS taches (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    projet_id UUID REFERENCES projets(id),
+    titre VARCHAR(500) NOT NULL,
+    assigne_email VARCHAR(255),
+    deadline DATE,
+    statut VARCHAR(50) DEFAULT 'a_faire',
+    priorite VARCHAR(20),
+    source VARCHAR(50) DEFAULT 'manuel',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Historique des scores de churn (11.2)
+CREATE TABLE IF NOT EXISTS churn_scores (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    client_id UUID REFERENCES clients(id),
+    score_risque INTEGER,
+    niveau VARCHAR(20),
+    facteurs TEXT,
+    diagnostic TEXT,
+    actions TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Veille appels d'offres (11.4)
+CREATE TABLE IF NOT EXISTS veille_marches (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ref VARCHAR(255) UNIQUE,
+    objet TEXT,
+    organisme VARCHAR(300),
+    date_parution DATE,
+    date_limite DATE,
+    url VARCHAR(1000),
+    type_marche VARCHAR(255),
+    pertinence VARCHAR(20),
+    raison TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_taches_statut ON taches(statut);
+CREATE INDEX IF NOT EXISTS idx_taches_projet ON taches(projet_id);
+CREATE INDEX IF NOT EXISTS idx_taches_deadline ON taches(deadline);
+CREATE INDEX IF NOT EXISTS idx_projets_statut ON projets(statut);
+CREATE INDEX IF NOT EXISTS idx_churn_client ON churn_scores(client_id);
+CREATE INDEX IF NOT EXISTS idx_veille_pertinence ON veille_marches(pertinence);
+
+CREATE TRIGGER trigger_projets_updated_at BEFORE UPDATE ON projets FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER trigger_taches_updated_at BEFORE UPDATE ON taches FOR EACH ROW EXECUTE FUNCTION update_updated_at();

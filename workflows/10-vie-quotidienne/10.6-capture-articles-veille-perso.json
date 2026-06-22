@@ -6,7 +6,10 @@
       "name": "Webhook Capture URL",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [100, 300],
+      "position": [
+        100,
+        300
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "capture",
@@ -19,8 +22,12 @@
       "name": "Valider et sécuriser",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [300, 300],
+      "position": [
+        300,
+        300
+      ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const body = $input.item.json.body || $input.item.json;\nconst url = (body.url || '').toString().trim();\nif (!/^https?:\\/\\/.+/.test(url)) throw new Error('URL invalide – doit commencer par http:// ou https://');\nif (url.length > 2000) throw new Error('URL trop longue');\nconst clean = s => (s || '').toString().replace(/<[^>]*>/g, '').replace(/ignore\\s+(all|previous|above)/gi, '').trim().substring(0, 300);\nreturn { url, contexte: clean(body.contexte || body.note || '') };"
       }
     },
@@ -29,13 +36,25 @@
       "name": "Récupérer contenu",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [520, 300],
+      "position": [
+        520,
+        300
+      ],
       "parameters": {
         "method": "GET",
         "url": "={{ $json.url }}",
         "options": {
-          "response": { "response": { "responseFormat": "text" } },
-          "redirect": { "redirect": { "followRedirects": true, "maxRedirects": 3 } },
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 3
+            }
+          },
           "timeout": 10000
         }
       }
@@ -45,8 +64,12 @@
       "name": "Extraire texte",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [740, 300],
+      "position": [
+        740,
+        300
+      ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const html = ($input.item.json.data || '').toString();\nconst url = $('Valider et sécuriser').item.json.url;\nconst contexte = $('Valider et sécuriser').item.json.contexte;\n\n// Extraire le titre\nconst titleMatch = html.match(/<title[^>]*>([^<]+)<\\/title>/i);\nconst titre = (titleMatch ? titleMatch[1] : url).trim().substring(0, 200);\n\n// Extraire le texte principal (heuristique : strip HTML tags)\nconst texte = html\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, '')\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, '')\n  .replace(/<nav[\\s\\S]*?<\\/nav>/gi, '')\n  .replace(/<footer[\\s\\S]*?<\\/footer>/gi, '')\n  .replace(/<header[\\s\\S]*?<\\/header>/gi, '')\n  .replace(/<[^>]+>/g, ' ')\n  .replace(/&nbsp;/g, ' ')\n  .replace(/&amp;/g, '&')\n  .replace(/&lt;/g, '<')\n  .replace(/&gt;/g, '>')\n  .replace(/\\s{2,}/g, ' ')\n  .trim()\n  .substring(0, 4000);\n\nreturn { url, contexte, titre, texte };"
       }
     },
@@ -55,7 +78,10 @@
       "name": "Résumer avec IA",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
-      "position": [960, 300],
+      "position": [
+        960,
+        300
+      ],
       "parameters": {
         "operation": "message",
         "modelId": "mistral-large-latest",
@@ -71,7 +97,10 @@
             }
           ]
         },
-        "options": { "temperature": 0.2, "maxTokens": 700 }
+        "options": {
+          "temperature": 0.2,
+          "maxTokens": 700
+        }
       }
     },
     {
@@ -79,8 +108,12 @@
       "name": "Parser résumé IA",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1180, 300],
+      "position": [
+        1180,
+        300
+      ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const content = $input.item.json.message.content;\nconst src = $('Extraire texte').item.json;\nlet ai;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  ai = JSON.parse(match[0]);\n} catch(e) {\n  ai = { titre_clean: src.titre, resume: src.texte.substring(0, 500), points_cles: [], tags: [], interet: 'moyen', action_suggérée: 'À lire' };\n}\nreturn {\n  url: src.url,\n  contexte: src.contexte,\n  titre: ai.titre_clean || src.titre,\n  resume: ai.resume || '',\n  points_cles: JSON.stringify(ai.points_cles || []),\n  tags: JSON.stringify(ai.tags || []),\n  interet: ai.interet || 'moyen',\n  action: ai.action_suggérée || ''\n};"
       }
     },
@@ -89,7 +122,10 @@
       "name": "Sauvegarder en bibliothèque",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [1400, 300],
+      "position": [
+        1400,
+        300
+      ],
       "parameters": {
         "operation": "executeQuery",
         "query": "INSERT INTO articles_personnels (url, titre, resume, points_cles, tags, contexte) VALUES ($1, $2, $3, $4::text[], $5::text[], $6) RETURNING id",
@@ -101,7 +137,10 @@
       "name": "Réponse avec résumé",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1620, 300],
+      "position": [
+        1620,
+        300
+      ],
       "parameters": {
         "options": {
           "responseCode": 200,
@@ -112,25 +151,81 @@
   ],
   "connections": {
     "Webhook Capture URL": {
-      "main": [[{ "node": "Valider et sécuriser", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Valider et sécuriser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Valider et sécuriser": {
-      "main": [[{ "node": "Récupérer contenu", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Récupérer contenu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Récupérer contenu": {
-      "main": [[{ "node": "Extraire texte", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Extraire texte",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Extraire texte": {
-      "main": [[{ "node": "Résumer avec IA", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Résumer avec IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Résumer avec IA": {
-      "main": [[{ "node": "Parser résumé IA", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parser résumé IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parser résumé IA": {
-      "main": [[{ "node": "Sauvegarder en bibliothèque", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Sauvegarder en bibliothèque",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Sauvegarder en bibliothèque": {
-      "main": [[{ "node": "Réponse avec résumé", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Réponse avec résumé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -139,10 +234,21 @@
     "saveManualExecutions": true
   },
   "versionId": "b1b2c3d4-1006-1006-1006-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
   "tags": [
-    { "id": "tag-vie-quotidienne", "name": "vie-quotidienne" },
-    { "id": "tag-ia", "name": "ia" },
-    { "id": "tag-veille", "name": "veille" }
+    {
+      "id": "tag-vie-quotidienne",
+      "name": "vie-quotidienne"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    },
+    {
+      "id": "tag-veille",
+      "name": "veille"
+    }
   ]
 }

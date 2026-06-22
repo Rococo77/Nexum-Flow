@@ -15,10 +15,16 @@ Bibliothèque de workflows n8n réutilisables pour agences de développement et 
 | 07 – Veille | Veille concurrentielle, Veille technologique | P2 |
 | 08 – RH | Tri CV, Onboarding | – |
 | 09 – Écoles post-bac | Candidatures, Admissions, Décrochage, Assistant scolarité, Stages | P1 / P2 |
+| 10 – Vie quotidienne | Digest matinal, Budget, Courses/repas, Alertes prix, Routine santé, Veille perso, Admin, Journal, Sport, Sorties, Maison, OCR documents | perso |
+| 11 – Pilotage | Suivi projet, Détection churn, Comptes-rendus, Veille appels d'offres | P1 / P2 |
 
-**Total : 27 workflows prêts à importer**
+**Total : 43 workflows prêts à importer**
 
 > Le module **09 – Écoles post-bac** est un pack vertical pour l'enseignement supérieur (universités, écoles d'ingénieurs/commerce, BTS) : il couvre le cycle complet candidature → admission → vie scolaire → stage.
+>
+> Le module **10 – Vie quotidienne** rassemble des automatisations personnelles (hors usage pro) : organisation, finances perso, santé, maison, gestion documentaire.
+>
+> Le module **11 – Pilotage** complète l'offre agence avec le suivi de production, la rétention client et la veille commerciale.
 
 ---
 
@@ -265,6 +271,96 @@ Enregistre les offres déposées par les entreprises et identifie les étudiants
 
 ---
 
+### 10 – Vie quotidienne
+
+Automatisations à usage personnel (hors contexte pro). Toutes les notifications partent vers `EMAIL_PERSO`.
+
+#### 10.1 – Digest matinal personnalisé
+Compile météo (wttr.in), Hacker News et l'actualité (RSS), puis génère un résumé motivant par IA, envoyé chaque matin à 7h.
+
+**Déclencheur :** Schedule quotidien 7h
+
+#### 10.2 – Suivi budget & alertes dépenses
+Enregistre une dépense, cumule le mois par catégorie et alerte par email en cas de dépassement du budget mensuel.
+
+**Déclencheur :** Webhook POST `/depense`
+
+#### 10.3 – Liste de courses & planification repas
+Ajoute des articles à la liste, puis l'IA propose un plan de repas hebdo et organise la liste par rayon.
+
+**Déclencheur :** Webhook POST `/courses`
+
+#### 10.4 – Alertes prix & suivi produits
+Scrute quotidiennement les pages des produits surveillés et alerte dès qu'un prix baisse au-delà d'un seuil.
+
+**Déclencheur :** Schedule quotidien 9h
+
+#### 10.5 – Rappels santé & routine quotidienne
+Messages adaptés au moment de la journée (matin, midi, après-midi, soir) + bilan hebdomadaire le dimanche.
+
+**Déclencheur :** Schedule multi-horaires
+
+#### 10.6 – Capture articles & bibliothèque personnelle
+Envoyez une URL : extraction du texte, résumé + tags + points clés par IA, archivage dans une bibliothèque consultable.
+
+**Déclencheur :** Webhook POST `/capture`
+
+#### 10.7 – Assistant administratif perso
+Analyse les emails récents, détecte les sujets administratifs (factures, relances, impôts, RDV médicaux…), extrait montant/échéance et notifie.
+
+**Déclencheur :** Schedule quotidien 8h
+
+#### 10.8 – Journal & suivi d'humeur
+Saisie quotidienne d'une humeur (1-5) + note, avec réflexion bienveillante par IA. Bilan de tendance chaque dimanche.
+
+**Déclencheur :** Webhook POST `/journal` + Schedule dimanche 20h
+
+#### 10.9 – Suivi sportif & objectifs
+Enregistre les séances (sans dépendance externe) et envoie un bilan hebdomadaire avec coaching IA vs objectif OMS.
+
+**Déclencheur :** Webhook POST `/activite-sport` + Schedule dimanche 19h
+
+#### 10.10 – Planificateur de sorties week-end
+Récupère un agenda local (RSS) et l'IA recommande les sorties selon vos préférences, chaque jeudi.
+
+**Déclencheur :** Schedule jeudi 18h
+
+#### 10.11 – Alertes maison (météo, air, pollen)
+Via Open-Meteo (sans clé) : alerte en cas de chaleur/gel/vent/pluie extrêmes, mauvaise qualité de l'air ou pollen élevé.
+
+**Déclencheur :** Schedule quotidien 6h45
+
+#### 10.12 – Capture & extraction de documents
+Envoyez l'URL d'une photo de document : OCR (OCR.space) puis structuration IA (type, émetteur, montant, infos clés) et archivage.
+
+**Déclencheur :** Webhook POST `/document`
+
+---
+
+### 11 – Pilotage
+
+#### 11.1 – Suivi de projet & relances tâches `P1`
+Détecte chaque matin les tâches en retard, bloquées ou à échéance proche et publie une synthèse IA actionnable sur Discord.
+
+**Déclencheur :** Schedule jours ouvrés 8h30
+
+#### 11.2 – Détection de churn client `P1`
+Calcule un score de risque de départ par client (inactivité, impayés, réclamations) et propose un plan de rétention IA pour les clients à risque.
+
+**Déclencheur :** Schedule lundi 7h
+
+#### 11.3 – Compte-rendu de réunion & tâches `P2`
+À partir de notes brutes, génère un compte-rendu structuré (résumé, décisions, tâches) envoyé par email et crée automatiquement les tâches en base.
+
+**Déclencheur :** Webhook POST `/compte-rendu`
+
+#### 11.4 – Veille appels d'offres `P2`
+Interroge quotidiennement le BOAMP (open data, sans clé), déduplique, évalue la pertinence par IA et notifie les marchés intéressants.
+
+**Déclencheur :** Schedule jours ouvrés 6h
+
+---
+
 ## Variables d'environnement requises
 
 Voir `docker/.env.example` pour la liste complète.
@@ -302,7 +398,9 @@ Nexum-Flow/
 │   ├── 06-marketing/           # 3 workflows
 │   ├── 07-veille/              # 2 workflows
 │   ├── 08-rh/                  # 2 workflows
-│   └── 09-education/           # 6 workflows (27 total)
+│   ├── 09-education/           # 6 workflows
+│   ├── 10-vie-quotidienne/     # 12 workflows
+│   └── 11-pilotage/            # 4 workflows (43 total)
 └── scripts/
     ├── setup.sh                # Démarrage complet
     └── import-workflows.sh     # Import dans n8n

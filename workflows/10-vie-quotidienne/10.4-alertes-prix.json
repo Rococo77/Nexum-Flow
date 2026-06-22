@@ -30,17 +30,6 @@
       }
     },
     {
-      "id": "b1b2c3d4-1004-1004-1004-000000000003",
-      "name": "Diviser par produit",
-      "type": "n8n-nodes-base.splitOut",
-      "typeVersion": 1,
-      "position": [520, 300],
-      "parameters": {
-        "fieldToSplitOut": "id",
-        "options": {}
-      }
-    },
-    {
       "id": "b1b2c3d4-1004-1004-1004-000000000004",
       "name": "Récupérer page produit",
       "type": "n8n-nodes-base.httpRequest",
@@ -62,6 +51,7 @@
       "typeVersion": 2,
       "position": [960, 300],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const html = ($input.item.json.data || '').toString();\nconst produit = $('Produits à surveiller').item.json;\n\n// Patterns courants de prix dans les pages e-commerce\nconst patterns = [\n  /itemprop=[\"']price[\"'][^>]*content=[\"']([\\d.,]+)[\"']/i,\n  /class=[\"'][^\"']*price[^\"']*[\"'][^>]*>[^<]*([\\d]+[.,][\\d]{2})/i,\n  /[\"']price[\"']:\\s*([\\d.]+)/i,\n  /([\\d]+,[\\d]{2})\\s*€/\n];\n\nlet prixTrouve = null;\nfor (const p of patterns) {\n  const m = html.match(p);\n  if (m) {\n    prixTrouve = parseFloat(m[1].replace(',', '.'));\n    if (prixTrouve > 0) break;\n  }\n}\n\nconst prixPrecedent = parseFloat(produit.prix_actuel) || null;\nconst seuil = parseFloat(produit.seuil_alerte) || 10;\nconst variation = prixPrecedent && prixTrouve ? ((prixTrouve - prixPrecedent) / prixPrecedent * 100) : 0;\n\nreturn {\n  produit_id: produit.id,\n  nom: produit.nom,\n  url: produit.url,\n  prix_precedent: prixPrecedent,\n  prix_actuel: prixTrouve,\n  seuil_alerte: seuil,\n  variation_pct: Math.round(variation * 10) / 10,\n  alerte: prixTrouve !== null && prixPrecedent !== null && variation <= -seuil\n};"
       }
     },
@@ -115,9 +105,6 @@
       "main": [[{ "node": "Produits à surveiller", "type": "main", "index": 0 }]]
     },
     "Produits à surveiller": {
-      "main": [[{ "node": "Diviser par produit", "type": "main", "index": 0 }]]
-    },
-    "Diviser par produit": {
       "main": [[{ "node": "Récupérer page produit", "type": "main", "index": 0 }]]
     },
     "Récupérer page produit": {

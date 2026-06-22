@@ -26,17 +26,62 @@
       "typeVersion": 3,
       "position": [300, 300],
       "parameters": {
-        "mode": "expression",
-        "output": "={{ (() => { const h = new Date().getHours(); const d = new Date().getDay(); if (h === 8) return 'matin'; if (h === 12) return 'midi'; if (h === 14) return 'apres-midi'; if (h === 19) return 'soir'; if (h === 21 && d === 0) return 'bilan'; return 'autre'; })() }}",
+        "mode": "rules",
         "rules": {
           "values": [
-            { "outputKey": "matin", "value": "matin" },
-            { "outputKey": "midi", "value": "midi" },
-            { "outputKey": "apres-midi", "value": "apres-midi" },
-            { "outputKey": "soir", "value": "soir" },
-            { "outputKey": "bilan", "value": "bilan" }
+            {
+              "conditions": {
+                "options": { "caseSensitive": true },
+                "conditions": [
+                  { "leftValue": "={{ new Date().getHours() }}", "rightValue": 8, "operator": { "type": "number", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "matin"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true },
+                "conditions": [
+                  { "leftValue": "={{ new Date().getHours() }}", "rightValue": 12, "operator": { "type": "number", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "midi"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true },
+                "conditions": [
+                  { "leftValue": "={{ new Date().getHours() }}", "rightValue": 14, "operator": { "type": "number", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "apres-midi"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true },
+                "conditions": [
+                  { "leftValue": "={{ new Date().getHours() }}", "rightValue": 19, "operator": { "type": "number", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "soir"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true },
+                "conditions": [
+                  { "leftValue": "={{ new Date().getHours() }}", "rightValue": 21, "operator": { "type": "number", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "bilan"
+            }
           ]
-        }
+        },
+        "options": {}
       }
     },
     {

@@ -6,7 +6,10 @@
       "name": "Webhook Dépense",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [100, 300],
+      "position": [
+        100,
+        300
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "depense",
@@ -19,8 +22,12 @@
       "name": "Valider dépense",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [300, 300],
+      "position": [
+        300,
+        300
+      ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const d = $input.item.json.body || $input.item.json;\nconst montant = parseFloat(d.montant);\nif (!montant || montant <= 0 || montant > 50000) throw new Error('Montant invalide');\nconst clean = (s, max) => (s || '').toString().replace(/<[^>]*>/g, '').trim().substring(0, max);\nconst cats = ['alimentation','transport','logement','sante','loisirs','shopping','restauration','abonnements','autre'];\nconst cat = cats.includes((d.categorie || '').toLowerCase()) ? d.categorie.toLowerCase() : 'autre';\nconst dateStr = d.date ? new Date(d.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];\nreturn { montant, categorie: cat, description: clean(d.description, 200), date: dateStr, source: 'webhook' };"
       }
     },
@@ -29,7 +36,10 @@
       "name": "Enregistrer dépense",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [520, 300],
+      "position": [
+        520,
+        300
+      ],
       "parameters": {
         "operation": "executeQuery",
         "query": "INSERT INTO depenses (montant, categorie, description, date, source) VALUES ($1, $2, $3, $4, $5) RETURNING id",
@@ -41,7 +51,10 @@
       "name": "Total du mois par catégorie",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [740, 300],
+      "position": [
+        740,
+        300
+      ],
       "parameters": {
         "operation": "executeQuery",
         "query": "SELECT categorie, SUM(montant)::numeric(10,2) AS total FROM depenses WHERE date_trunc('month', date) = date_trunc('month', CURRENT_DATE) GROUP BY categorie ORDER BY total DESC"
@@ -52,10 +65,13 @@
       "name": "Analyser et conseiller",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [960, 300],
+      "position": [
+        960,
+        300
+      ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const totaux = $input.all().map(i => i.json);\nconst totalMois = totaux.reduce((s, r) => s + parseFloat(r.total || 0), 0);\nconst budget = parseFloat($env.BUDGET_MENSUEL_ALERTE) || 2000;\nconst depense = $('Valider dépense').item.json;\nreturn [{\n  json: {\n    totaux,\n    total_mois: totalMois.toFixed(2),\n    budget_mensuel: budget,\n    depassement: totalMois > budget,\n    pct_budget: Math.round(totalMois / budget * 100),\n    derniere_depense: depense\n  }\n}];"
+        "jsCode": "const totaux = $input.all().map(i => i.json);\nconst totalMois = totaux.reduce((s, r) => s + parseFloat(r.total || 0), 0);\nconst budget = parseFloat($env.BUDGET_MENSUEL_ALERTE) || 2000;\nconst depense = $('Valider dépense').first().json;\nreturn [{\n  json: {\n    totaux,\n    total_mois: totalMois.toFixed(2),\n    budget_mensuel: budget,\n    depassement: totalMois > budget,\n    pct_budget: Math.round(totalMois / budget * 100),\n    derniere_depense: depense\n  }\n}];"
       }
     },
     {
@@ -63,15 +79,23 @@
       "name": "Dépassement budget ?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1180, 300],
+      "position": [
+        1180,
+        300
+      ],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": false },
+          "options": {
+            "caseSensitive": false
+          },
           "conditions": [
             {
               "leftValue": "={{ $json.depassement }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "equal" }
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
             }
           ]
         }
@@ -82,7 +106,10 @@
       "name": "Alerte dépassement",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [1400, 200],
+      "position": [
+        1400,
+        200
+      ],
       "parameters": {
         "operation": "send",
         "toList": "={{ $env.EMAIL_PERSO }}",
@@ -96,7 +123,10 @@
       "name": "Réponse succès",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1400, 420],
+      "position": [
+        1400,
+        420
+      ],
       "parameters": {
         "options": {
           "responseCode": 200,
@@ -107,28 +137,88 @@
   ],
   "connections": {
     "Webhook Dépense": {
-      "main": [[{ "node": "Valider dépense", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Valider dépense",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Valider dépense": {
-      "main": [[{ "node": "Enregistrer dépense", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Enregistrer dépense",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Enregistrer dépense": {
-      "main": [[{ "node": "Total du mois par catégorie", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Total du mois par catégorie",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Total du mois par catégorie": {
-      "main": [[{ "node": "Analyser et conseiller", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Analyser et conseiller",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Analyser et conseiller": {
-      "main": [[{ "node": "Dépassement budget ?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Dépassement budget ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Dépassement budget ?": {
       "main": [
-        [{ "node": "Alerte dépassement", "type": "main", "index": 0 }],
-        [{ "node": "Réponse succès", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Alerte dépassement",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Réponse succès",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Alerte dépassement": {
-      "main": [[{ "node": "Réponse succès", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Réponse succès",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -137,9 +227,17 @@
     "saveManualExecutions": true
   },
   "versionId": "b1b2c3d4-1002-1002-1002-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
   "tags": [
-    { "id": "tag-vie-quotidienne", "name": "vie-quotidienne" },
-    { "id": "tag-budget", "name": "budget" }
+    {
+      "id": "tag-vie-quotidienne",
+      "name": "vie-quotidienne"
+    },
+    {
+      "id": "tag-budget",
+      "name": "budget"
+    }
   ]
 }

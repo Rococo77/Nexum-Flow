@@ -1,0 +1,263 @@
+{
+  "name": "10.9 – Suivi sportif & objectifs",
+  "nodes": [
+    {
+      "id": "b1b2c3d4-1009-1009-1009-000000000001",
+      "name": "Webhook Activité",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        100,
+        200
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "activite-sport",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "b1b2c3d4-1009-1009-1009-000000000002",
+      "name": "Valider activité",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const b = $input.item.json.body || $input.item.json;\nconst duree = parseFloat(b.duree_min);\nif (!duree || duree <= 0 || duree > 1440) throw new Error('Durée invalide (minutes)');\nconst clean = s => (s || '').toString().replace(/<[^>]*>/g, '').trim().substring(0, 100);\nconst types = ['course','marche','velo','natation','musculation','yoga','autre'];\nconst type = types.includes((b.type || '').toLowerCase()) ? b.type.toLowerCase() : 'autre';\nreturn {\n  type,\n  duree_min: Math.round(duree),\n  distance_km: parseFloat(b.distance_km) || null,\n  ressenti: clean(b.ressenti),\n  date: b.date && /^\\d{4}-\\d{2}-\\d{2}$/.test(b.date) ? b.date : new Date().toISOString().split('T')[0]\n};"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1009-1009-1009-000000000003",
+      "name": "Enregistrer activité",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        540,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO activites_sport (type, duree_min, distance_km, ressenti, date) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+        "queryParams": "={{ [$json.type, $json.duree_min, $json.distance_km, $json.ressenti, $json.date] }}"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1009-1009-1009-000000000004",
+      "name": "Réponse activité",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        760,
+        200
+      ],
+      "parameters": {
+        "options": {
+          "responseCode": 200,
+          "responseData": "={ \"success\": true, \"message\": \"Activité enregistrée\" }"
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1009-1009-1009-000000000005",
+      "name": "Chaque dimanche 19h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        100,
+        480
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 19 * * 0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1009-1009-1009-000000000006",
+      "name": "Activités de la semaine",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        320,
+        480
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT type, COUNT(*)::int AS nb, SUM(duree_min)::int AS minutes, COALESCE(SUM(distance_km),0)::numeric(8,1) AS km FROM activites_sport WHERE date >= CURRENT_DATE - INTERVAL '7 days' GROUP BY type ORDER BY minutes DESC"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1009-1009-1009-000000000007",
+      "name": "Agréger le bilan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        480
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const lignes = $input.all().map(i => i.json).filter(r => r.type);\nconst totalMin = lignes.reduce((s, r) => s + (parseInt(r.minutes) || 0), 0);\nconst totalKm = lignes.reduce((s, r) => s + (parseFloat(r.km) || 0), 0);\nconst objectif = parseInt($env.OBJECTIF_SPORT_MIN_SEMAINE) || 150;\nconst detail = lignes.map(r => `- ${r.type} : ${r.nb} séance(s), ${r.minutes} min${r.km > 0 ? ', ' + r.km + ' km' : ''}`).join('\\n') || 'Aucune activité enregistrée cette semaine.';\nreturn [{ json: {\n  total_min: totalMin,\n  total_km: totalKm.toFixed(1),\n  objectif,\n  objectif_atteint: totalMin >= objectif,\n  pct: Math.round(totalMin / objectif * 100),\n  detail\n} }];"
+      }
+    },
+    {
+      "id": "b1b2c3d4-1009-1009-1009-000000000008",
+      "name": "Bilan & coaching (IA)",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        760,
+        480
+      ],
+      "parameters": {
+        "operation": "message",
+        "modelId": "mistral-small-latest",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es un coach sportif motivant et bienveillant. À partir du bilan hebdo, rédige un message HTML court (max 150 mots) : félicitations adaptées, comparaison à l'objectif OMS (150 min/semaine), 1 conseil pour la semaine prochaine. Reste positif même si peu d'activité."
+            },
+            {
+              "role": "user",
+              "content": "=Total : {{ $json.total_min }} min / objectif {{ $json.objectif }} min ({{ $json.pct }}%), {{ $json.total_km }} km.\n\nDétail :\n{{ $json.detail }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 350
+        }
+      }
+    },
+    {
+      "id": "b1b2c3d4-1009-1009-1009-000000000009",
+      "name": "Email bilan sport",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        980,
+        480
+      ],
+      "parameters": {
+        "operation": "send",
+        "toList": "={{ $env.EMAIL_PERSO }}",
+        "subject": "=🏃 Bilan sportif de la semaine – {{ $('Agréger le bilan').item.json.total_min }} min",
+        "emailType": "html",
+        "message": "={{ $json.message.content }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Activité": {
+      "main": [
+        [
+          {
+            "node": "Valider activité",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider activité": {
+      "main": [
+        [
+          {
+            "node": "Enregistrer activité",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enregistrer activité": {
+      "main": [
+        [
+          {
+            "node": "Réponse activité",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chaque dimanche 19h": {
+      "main": [
+        [
+          {
+            "node": "Activités de la semaine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Activités de la semaine": {
+      "main": [
+        [
+          {
+            "node": "Agréger le bilan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agréger le bilan": {
+      "main": [
+        [
+          {
+            "node": "Bilan & coaching (IA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bilan & coaching (IA)": {
+      "main": [
+        [
+          {
+            "node": "Email bilan sport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "b1b2c3d4-1009-1009-1009-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-vie-quotidienne",
+      "name": "vie-quotidienne"
+    },
+    {
+      "id": "tag-sante",
+      "name": "sante"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    }
+  ]
+}

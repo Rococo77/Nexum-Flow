@@ -1,0 +1,220 @@
+{
+  "name": "11.4 – Veille appels d'offres",
+  "nodes": [
+    {
+      "id": "c1c2c3c4-1104-1104-1104-000000000001",
+      "name": "Chaque jour à 6h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [100, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "cronExpression", "expression": "0 6 * * 1-5" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c1c2c3c4-1104-1104-1104-000000000002",
+      "name": "Rechercher sur BOAMP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [320, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://boamp-datadila.opendatasoft.com/api/records/1.0/search/",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "dataset", "value": "boamp" },
+            { "name": "q", "value": "={{ $env.MOTS_CLES_MARCHES || 'site internet' }}" },
+            { "name": "rows", "value": "20" },
+            { "name": "sort", "value": "-dateparution" }
+          ]
+        },
+        "options": {
+          "response": { "response": { "responseFormat": "json" } }
+        }
+      }
+    },
+    {
+      "id": "c1c2c3c4-1104-1104-1104-000000000003",
+      "name": "Éclater les résultats",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [540, 300],
+      "parameters": {
+        "fieldToSplitOut": "records",
+        "options": {}
+      }
+    },
+    {
+      "id": "c1c2c3c4-1104-1104-1104-000000000004",
+      "name": "Normaliser annonce",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 300],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const rec = $input.item.json;\nconst r = rec.fields || rec;\nconst id = r.idweb || rec.recordid || r.id || '';\nreturn { json: {\n  ref: id,\n  objet: (r.objet || '').toString().substring(0, 800),\n  organisme: (r.nomacheteur || r.organisme || '').toString().substring(0, 300),\n  date_parution: (r.dateparution || '').toString().substring(0, 10),\n  date_limite: (r.datelimitereponse || '').toString().substring(0, 10),\n  url: id ? `https://www.boamp.fr/avis/detail/${id}` : '',\n  type_marche: r.famille_libelle || r.nature_libelle || ''\n} };"
+      }
+    },
+    {
+      "id": "c1c2c3c4-1104-1104-1104-000000000005",
+      "name": "Déjà vu ?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [980, 300],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*)::int AS deja FROM veille_marches WHERE ref = $1",
+        "queryParams": "={{ [$json.ref] }}"
+      }
+    },
+    {
+      "id": "c1c2c3c4-1104-1104-1104-000000000006",
+      "name": "Nouvelle annonce ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1200, 300],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.deja }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "equals" }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c1c2c3c4-1104-1104-1104-000000000007",
+      "name": "Évaluer pertinence (IA)",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1420, 220],
+      "parameters": {
+        "operation": "message",
+        "modelId": "mistral-small-latest",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es chargé de veille pour une agence web (sites, applications, refonte, SEO, maintenance). Évalue la pertinence d'un appel d'offres pour cette agence. Retourne UNIQUEMENT ce JSON : { \"pertinence\": \"forte\" | \"moyenne\" | \"faible\", \"raison\": \"string (1 phrase)\" }"
+            },
+            { "role": "user", "content": "=Objet : {{ $('Normaliser annonce').item.json.objet }}\nType : {{ $('Normaliser annonce').item.json.type_marche }}\nOrganisme : {{ $('Normaliser annonce').item.json.organisme }}" }
+          ]
+        },
+        "options": { "temperature": 0.2, "maxTokens": 150 }
+      }
+    },
+    {
+      "id": "c1c2c3c4-1104-1104-1104-000000000008",
+      "name": "Enregistrer + préparer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 220],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const a = $('Normaliser annonce').item.json;\nlet eval;\ntry { eval = JSON.parse($input.item.json.message.content.match(/\\{[\\s\\S]*\\}/)[0]); }\ncatch(e) { eval = { pertinence: 'moyenne', raison: 'Analyse indisponible' }; }\nreturn { json: { ...a, pertinence: eval.pertinence, raison: eval.raison } };"
+      }
+    },
+    {
+      "id": "c1c2c3c4-1104-1104-1104-000000000009",
+      "name": "Sauvegarder annonce",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1860, 220],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO veille_marches (ref, objet, organisme, date_parution, date_limite, url, type_marche, pertinence, raison) VALUES ($1, $2, $3, NULLIF($4,'')::date, NULLIF($5,'')::date, $6, $7, $8, $9) ON CONFLICT (ref) DO NOTHING",
+        "queryParams": "={{ [$json.ref, $json.objet, $json.organisme, $json.date_parution, $json.date_limite, $json.url, $json.type_marche, $json.pertinence, $json.raison] }}"
+      }
+    },
+    {
+      "id": "c1c2c3c4-1104-1104-1104-000000000010",
+      "name": "Pertinent ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2080, 220],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Enregistrer + préparer').item.json.pertinence }}",
+              "rightValue": "faible",
+              "operator": { "type": "string", "operation": "notEquals" }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c1c2c3c4-1104-1104-1104-000000000011",
+      "name": "Notifier veille",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [2300, 220],
+      "parameters": {
+        "operation": "sendMessage",
+        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
+        "channelId": "={{ $env.DISCORD_VEILLE_CHANNEL_ID }}",
+        "content": "=📢 **Appel d'offres ({{ $('Enregistrer + préparer').item.json.pertinence }})** — {{ $('Enregistrer + préparer').item.json.organisme }}\n**Objet :** {{ $('Enregistrer + préparer').item.json.objet.substring(0, 300) }}\n**Date limite :** {{ $('Enregistrer + préparer').item.json.date_limite || 'non précisée' }}\n**Pourquoi :** {{ $('Enregistrer + préparer').item.json.raison }}\n{{ $('Enregistrer + préparer').item.json.url }}"
+      }
+    }
+  ],
+  "connections": {
+    "Chaque jour à 6h": {
+      "main": [[{ "node": "Rechercher sur BOAMP", "type": "main", "index": 0 }]]
+    },
+    "Rechercher sur BOAMP": {
+      "main": [[{ "node": "Éclater les résultats", "type": "main", "index": 0 }]]
+    },
+    "Éclater les résultats": {
+      "main": [[{ "node": "Normaliser annonce", "type": "main", "index": 0 }]]
+    },
+    "Normaliser annonce": {
+      "main": [[{ "node": "Déjà vu ?", "type": "main", "index": 0 }]]
+    },
+    "Déjà vu ?": {
+      "main": [[{ "node": "Nouvelle annonce ?", "type": "main", "index": 0 }]]
+    },
+    "Nouvelle annonce ?": {
+      "main": [
+        [{ "node": "Évaluer pertinence (IA)", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Évaluer pertinence (IA)": {
+      "main": [[{ "node": "Enregistrer + préparer", "type": "main", "index": 0 }]]
+    },
+    "Enregistrer + préparer": {
+      "main": [[{ "node": "Sauvegarder annonce", "type": "main", "index": 0 }]]
+    },
+    "Sauvegarder annonce": {
+      "main": [[{ "node": "Pertinent ?", "type": "main", "index": 0 }]]
+    },
+    "Pertinent ?": {
+      "main": [
+        [{ "node": "Notifier veille", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "c1c2c3c4-1104-1104-1104-000000000099",
+  "meta": { "instanceId": "nexum-flow" },
+  "tags": [
+    { "id": "tag-pilotage", "name": "pilotage" },
+    { "id": "tag-veille", "name": "veille" },
+    { "id": "tag-ia", "name": "ia" }
+  ]
+}

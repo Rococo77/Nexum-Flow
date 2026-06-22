@@ -6,7 +6,10 @@
       "name": "Webhook Courses",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [100, 300],
+      "position": [
+        100,
+        300
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "courses",
@@ -19,9 +22,13 @@
       "name": "Valider articles",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [300, 300],
+      "position": [
+        300,
+        300
+      ],
       "parameters": {
-        "jsCode": "const body = $input.item.json.body || $input.item.json;\nconst action = (body.action || 'add').toLowerCase();\nconst clean = s => (s || '').toString().replace(/<[^>]*>/g, '').trim().substring(0, 100);\nif (action === 'add') {\n  const articles = Array.isArray(body.articles) ? body.articles : [body.article].filter(Boolean);\n  if (!articles.length) throw new Error('Aucun article fourni');\n  const semaine = new Date().toISOString().substring(0, 10);\n  return articles.slice(0, 50).map(a => ({\n    article: clean(typeof a === 'string' ? a : a.nom || a.article),\n    quantite: clean(typeof a === 'object' ? a.quantite : ''),\n    semaine,\n    action: 'add'\n  }));\n}\nreturn [{ action: 'generate_plan', semaine: new Date().toISOString().substring(0, 10) }];"
+        "mode": "runOnceForAllItems",
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst action = (body.action || 'add').toLowerCase();\nconst clean = s => (s || '').toString().replace(/<[^>]*>/g, '').trim().substring(0, 100);\nif (action === 'add') {\n  const articles = Array.isArray(body.articles) ? body.articles : [body.article].filter(Boolean);\n  if (!articles.length) throw new Error('Aucun article fourni');\n  const semaine = new Date().toISOString().substring(0, 10);\n  return articles.slice(0, 50).map(a => ({\n    article: clean(typeof a === 'string' ? a : a.nom || a.article),\n    quantite: clean(typeof a === 'object' ? a.quantite : ''),\n    semaine,\n    action: 'add'\n  }));\n}\nreturn [{ action: 'generate_plan', semaine: new Date().toISOString().substring(0, 10) }];"
       }
     },
     {
@@ -29,7 +36,10 @@
       "name": "Enregistrer en base",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [520, 300],
+      "position": [
+        520,
+        300
+      ],
       "parameters": {
         "operation": "executeQuery",
         "query": "INSERT INTO liste_courses (article, quantite, semaine) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
@@ -38,14 +48,16 @@
     },
     {
       "id": "b1b2c3d4-1003-1003-1003-000000000004",
-      "name": "Récupérer liste complète",
-      "type": "n8n-nodes-base.postgres",
+      "name": "Consolider la liste",
+      "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [740, 300],
+      "position": [
+        740,
+        300
+      ],
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT article, quantite, categorie, achete FROM liste_courses WHERE semaine >= $1 AND achete = false ORDER BY categorie NULLS LAST, article",
-        "queryParams": "={{ [new Date(Date.now() - 7*24*3600*1000).toISOString().split('T')[0]] }}"
+        "mode": "runOnceForAllItems",
+        "jsCode": "const articles = $('Valider articles').all().map(i => i.json).filter(a => a.article);\nconst liste = articles.map(a => `- ${a.article}${a.quantite ? ' (' + a.quantite + ')' : ''}`).join('\\n');\nreturn [{ json: { liste: liste || '(liste vide)', nb: articles.length } }];"
       }
     },
     {
@@ -53,7 +65,10 @@
       "name": "Planifier repas avec IA",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
-      "position": [960, 300],
+      "position": [
+        960,
+        300
+      ],
       "parameters": {
         "operation": "message",
         "modelId": "mistral-small-latest",
@@ -65,7 +80,7 @@
             },
             {
               "role": "user",
-              "content": "Liste de courses :\n={{ $input.all().map(i => `- ${i.json.article}${i.json.quantite ? ' (' + i.json.quantite + ')' : ''}`).join('\\n') }}"
+              "content": "=Liste de courses :\n{{ $json.liste }}"
             }
           ]
         },
@@ -80,8 +95,12 @@
       "name": "Formater et envoyer",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1180, 300],
+      "position": [
+        1180,
+        300
+      ],
       "parameters": {
+        "mode": "runOnceForEachItem",
         "jsCode": "const content = $input.item.json.message.content;\nlet plan;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  plan = JSON.parse(match[0]);\n} catch(e) {\n  plan = { plan_repas: {}, liste_organisee: { Autre: [] } };\n}\nconst jours = ['lundi','mardi','mercredi','jeudi','vendredi'];\nconst planHtml = jours.map(j => {\n  const r = plan.plan_repas[j] || {};\n  return `<tr><td><strong>${j.charAt(0).toUpperCase()+j.slice(1)}</strong></td><td>${r.dejeuner || '–'}</td><td>${r.diner || '–'}</td></tr>`;\n}).join('');\nconst listeHtml = Object.entries(plan.liste_organisee || {}).map(([rayon, items]) =>\n  `<h3>${rayon}</h3><ul>${(items||[]).map(i => `<li>${i}</li>`).join('')}</ul>`\n).join('');\nreturn [{\n  json: {\n    plan_html: planHtml,\n    liste_html: listeHtml\n  }\n}];"
       }
     },
@@ -90,7 +109,10 @@
       "name": "Envoyer par email",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [1400, 250],
+      "position": [
+        1400,
+        250
+      ],
       "parameters": {
         "operation": "send",
         "toList": "={{ $env.EMAIL_PERSO }}",
@@ -104,7 +126,10 @@
       "name": "Réponse webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1400, 400],
+      "position": [
+        1400,
+        400
+      ],
       "parameters": {
         "options": {
           "responseCode": 200,
@@ -115,24 +140,70 @@
   ],
   "connections": {
     "Webhook Courses": {
-      "main": [[{ "node": "Valider articles", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Valider articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Valider articles": {
-      "main": [[{ "node": "Enregistrer en base", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Enregistrer en base",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Consolider la liste",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Enregistrer en base": {
-      "main": [[{ "node": "Récupérer liste complète", "type": "main", "index": 0 }]]
-    },
-    "Récupérer liste complète": {
-      "main": [[{ "node": "Planifier repas avec IA", "type": "main", "index": 0 }]]
+    "Consolider la liste": {
+      "main": [
+        [
+          {
+            "node": "Planifier repas avec IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Planifier repas avec IA": {
-      "main": [[{ "node": "Formater et envoyer", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Formater et envoyer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Formater et envoyer": {
       "main": [
-        [{ "node": "Envoyer par email", "type": "main", "index": 0 }],
-        [{ "node": "Réponse webhook", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Envoyer par email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Réponse webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
@@ -142,9 +213,17 @@
     "saveManualExecutions": true
   },
   "versionId": "b1b2c3d4-1003-1003-1003-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
   "tags": [
-    { "id": "tag-vie-quotidienne", "name": "vie-quotidienne" },
-    { "id": "tag-ia", "name": "ia" }
+    {
+      "id": "tag-vie-quotidienne",
+      "name": "vie-quotidienne"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    }
   ]
 }
