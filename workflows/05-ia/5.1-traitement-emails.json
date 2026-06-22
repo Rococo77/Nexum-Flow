@@ -6,11 +6,26 @@
       "name": "Gmail Trigger – Nouveaux emails",
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
-        "pollTimes": { "item": [{ "mode": "everyMinute" }] },
-        "filters": { "labelIds": ["INBOX"] },
-        "options": { "downloadAttachments": true }
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "labelIds": [
+            "INBOX"
+          ]
+        },
+        "options": {
+          "downloadAttachments": true
+        }
       }
     },
     {
@@ -18,7 +33,10 @@
       "name": "Déjà traité ?",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [500, 300],
+      "position": [
+        500,
+        300
+      ],
       "parameters": {
         "operation": "executeQuery",
         "query": "SELECT id FROM emails_traites WHERE message_id = $1",
@@ -33,7 +51,10 @@
       "name": "Email nouveau ?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [750, 300],
+      "position": [
+        750,
+        300
+      ],
       "parameters": {
         "conditions": {
           "conditions": [
@@ -41,7 +62,10 @@
               "id": "cond-1",
               "leftValue": "={{ $json.length }}",
               "rightValue": 0,
-              "operator": { "type": "number", "operation": "equals" }
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -53,7 +77,10 @@
       "name": "Sanitiser contenu email",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1000, 200],
+      "position": [
+        1000,
+        200
+      ],
       "parameters": {
         "jsCode": "const email = $input.item.json;\n// Tronquer pour éviter les attaques par dépassement de contexte et prompt injection\nconst MAX_LEN = 3000;\nconst sanitize = (s) => (s || '').replace(/ignore (all |previous |above )/gi, '[filtré] ').substring(0, MAX_LEN);\nreturn {\n  id: email.id,\n  from: (email.from || '').substring(0, 200),\n  subject: sanitize(email.subject).substring(0, 200),\n  body: sanitize(email.text || email.snippet),\n  has_attachments: Array.isArray(email.attachments) && email.attachments.length > 0\n};"
       }
@@ -63,7 +90,10 @@
       "name": "Classifier avec IA",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
-      "position": [1000, 200],
+      "position": [
+        1000,
+        200
+      ],
       "parameters": {
         "operation": "message",
         "modelId": "gpt-4o",
@@ -79,7 +109,10 @@
             }
           ]
         },
-        "options": { "temperature": 0.2, "maxTokens": 600 }
+        "options": {
+          "temperature": 0.2,
+          "maxTokens": 600
+        }
       }
     },
     {
@@ -87,7 +120,10 @@
       "name": "Parser classification",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1250, 200],
+      "position": [
+        1250,
+        200
+      ],
       "parameters": {
         "jsCode": "const content = $input.item.json.message.content;\nlet classification;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  classification = JSON.parse(match[0]);\n} catch(e) {\n  classification = { classification: 'autre', priorite: 'normale', sentiment: 'neutre', resume: 'Analyse impossible', action_recommandee: 'Vérifier manuellement', reponse_automatique: null, creer_ticket: false, escalader: false };\n}\nconst email = $('Gmail Trigger – Nouveaux emails').item.json;\nreturn { ...classification, email_id: email.id, expediteur: email.from, sujet: email.subject };"
       }
@@ -97,7 +133,10 @@
       "name": "Réponse automatique possible ?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1500, 100],
+      "position": [
+        1500,
+        100
+      ],
       "parameters": {
         "conditions": {
           "conditions": [
@@ -105,7 +144,10 @@
               "id": "cond-r",
               "leftValue": "={{ $json.reponse_automatique }}",
               "rightValue": "",
-              "operator": { "type": "string", "operation": "isNotEmpty" }
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
             }
           ],
           "combinator": "and"
@@ -117,7 +159,10 @@
       "name": "Envoyer réponse automatique",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [1750, 0],
+      "position": [
+        1750,
+        0
+      ],
       "parameters": {
         "operation": "reply",
         "messageId": "={{ $json.email_id }}",
@@ -130,7 +175,10 @@
       "name": "Créer ticket SAV ?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1500, 320],
+      "position": [
+        1500,
+        320
+      ],
       "parameters": {
         "conditions": {
           "conditions": [
@@ -138,7 +186,10 @@
               "id": "cond-t",
               "leftValue": "={{ $json.creer_ticket }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "equals" }
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -150,18 +201,36 @@
       "name": "Créer ticket dans CRM",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1750, 280],
+      "position": [
+        1750,
+        280
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $env.CRM_API_URL }}/tickets",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "titre", "value": "={{ $json.sujet }}" },
-            { "name": "expediteur", "value": "={{ $json.expediteur }}" },
-            { "name": "priorite", "value": "={{ $json.priorite }}" },
-            { "name": "classification", "value": "={{ $json.classification }}" },
-            { "name": "resume", "value": "={{ $json.resume }}" }
+            {
+              "name": "titre",
+              "value": "={{ $json.sujet }}"
+            },
+            {
+              "name": "expediteur",
+              "value": "={{ $json.expediteur }}"
+            },
+            {
+              "name": "priorite",
+              "value": "={{ $json.priorite }}"
+            },
+            {
+              "name": "classification",
+              "value": "={{ $json.classification }}"
+            },
+            {
+              "name": "resume",
+              "value": "={{ $json.resume }}"
+            }
           ]
         }
       }
@@ -171,7 +240,10 @@
       "name": "Notifier si urgent",
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
-      "position": [1750, 500],
+      "position": [
+        1750,
+        500
+      ],
       "parameters": {
         "operation": "sendMessage",
         "guildId": "={{ $env.DISCORD_GUILD_ID }}",
@@ -184,7 +256,10 @@
       "name": "Enregistrer en base",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [1500, 520],
+      "position": [
+        1500,
+        520
+      ],
       "parameters": {
         "operation": "insert",
         "schema": "public",
@@ -196,50 +271,129 @@
   ],
   "connections": {
     "Gmail Trigger – Nouveaux emails": {
-      "main": [[{ "node": "Déjà traité ?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Déjà traité ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Déjà traité ?": {
-      "main": [[{ "node": "Email nouveau ?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Email nouveau ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Email nouveau ?": {
       "main": [
-        [{ "node": "Sanitiser contenu email", "type": "main", "index": 0 }],
+        [
+          {
+            "node": "Sanitiser contenu email",
+            "type": "main",
+            "index": 0
+          }
+        ],
         []
       ]
     },
     "Sanitiser contenu email": {
-      "main": [[{ "node": "Classifier avec IA", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Classifier avec IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Classifier avec IA": {
-      "main": [[{ "node": "Parser classification", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parser classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parser classification": {
       "main": [
         [
-          { "node": "Réponse automatique possible ?", "type": "main", "index": 0 },
-          { "node": "Créer ticket SAV ?", "type": "main", "index": 0 },
-          { "node": "Notifier si urgent", "type": "main", "index": 0 },
-          { "node": "Enregistrer en base", "type": "main", "index": 0 }
+          {
+            "node": "Réponse automatique possible ?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Créer ticket SAV ?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notifier si urgent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Enregistrer en base",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Réponse automatique possible ?": {
       "main": [
-        [{ "node": "Envoyer réponse automatique", "type": "main", "index": 0 }],
+        [
+          {
+            "node": "Envoyer réponse automatique",
+            "type": "main",
+            "index": 0
+          }
+        ],
         []
       ]
     },
     "Créer ticket SAV ?": {
       "main": [
-        [{ "node": "Créer ticket dans CRM", "type": "main", "index": 0 }],
+        [
+          {
+            "node": "Créer ticket dans CRM",
+            "type": "main",
+            "index": 0
+          }
+        ],
         []
       ]
     }
   },
   "active": false,
-  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
   "versionId": "a1b2c3d4-0012-0012-0012-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
-  "id": "nexum-wf-05-01",
-  "tags": [{ "id": "tag-ia", "name": "ia" }, { "id": "tag-p1", "name": "priorite-1" }]
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    },
+    {
+      "id": "tag-p1",
+      "name": "priorite-1"
+    }
+  ]
 }

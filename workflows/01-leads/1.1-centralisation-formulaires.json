@@ -6,7 +6,10 @@
       "name": "Webhook Formulaire Site",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "lead-formulaire",
@@ -19,13 +22,22 @@
       "name": "Gmail – Nouveau lead email",
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1,
-      "position": [250, 460],
+      "position": [
+        250,
+        460
+      ],
       "parameters": {
         "pollTimes": {
-          "item": [{ "mode": "everyMinute" }]
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
         },
         "filters": {
-          "labelIds": ["INBOX"],
+          "labelIds": [
+            "INBOX"
+          ],
           "q": "subject:(contact OR devis OR demande OR projet)"
         },
         "options": {}
@@ -36,7 +48,10 @@
       "name": "Webhook WhatsApp",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [250, 620],
+      "position": [
+        250,
+        620
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "lead-whatsapp",
@@ -49,7 +64,10 @@
       "name": "Normaliser données lead",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [500, 460],
+      "position": [
+        500,
+        460
+      ],
       "parameters": {
         "jsCode": "const item = $input.item.json;\nconst source = $node.name.includes('Gmail') ? 'email'\n  : $node.name.includes('WhatsApp') ? 'whatsapp'\n  : 'formulaire';\n\nreturn {\n  source,\n  nom: item.nom || item.last_name || item.name?.split(' ')[1] || '',\n  prenom: item.prenom || item.first_name || item.name?.split(' ')[0] || '',\n  email: item.email || item.from || '',\n  telephone: item.telephone || item.phone || '',\n  entreprise: item.entreprise || item.company || '',\n  message: item.message || item.body || item.text || '',\n  date_reception: new Date().toISOString()\n};"
       }
@@ -59,7 +77,10 @@
       "name": "Enregistrer en base",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [750, 460],
+      "position": [
+        750,
+        460
+      ],
       "parameters": {
         "operation": "insert",
         "schema": "public",
@@ -75,7 +96,10 @@
       "name": "Notifier Discord",
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
-      "position": [1000, 360],
+      "position": [
+        1000,
+        360
+      ],
       "parameters": {
         "operation": "sendMessage",
         "guildId": "={{ $env.DISCORD_GUILD_ID }}",
@@ -88,7 +112,10 @@
       "name": "Email de confirmation",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [1000, 520],
+      "position": [
+        1000,
+        520
+      ],
       "parameters": {
         "operation": "send",
         "toList": "={{ $json.email }}",
@@ -102,7 +129,10 @@
       "name": "Créer dans CRM",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1000, 680],
+      "position": [
+        1000,
+        680
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $env.CRM_API_URL }}/contacts",
@@ -110,8 +140,14 @@
         "genericAuthType": "httpHeaderAuth",
         "headers": {
           "parameters": [
-            { "name": "Authorization", "value": "Bearer {{ $env.CRM_API_KEY }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.CRM_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "body": {
@@ -126,7 +162,10 @@
       "name": "Réponse Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1250, 300],
+      "position": [
+        1250,
+        300
+      ],
       "parameters": {
         "options": {
           "responseCode": 200,
@@ -137,28 +176,80 @@
   ],
   "connections": {
     "Webhook Formulaire Site": {
-      "main": [[{ "node": "Normaliser données lead", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Normaliser données lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Gmail – Nouveau lead email": {
-      "main": [[{ "node": "Normaliser données lead", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Normaliser données lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Webhook WhatsApp": {
-      "main": [[{ "node": "Normaliser données lead", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Normaliser données lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Normaliser données lead": {
-      "main": [[{ "node": "Enregistrer en base", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Enregistrer en base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Enregistrer en base": {
       "main": [
         [
-          { "node": "Notifier Discord", "type": "main", "index": 0 },
-          { "node": "Email de confirmation", "type": "main", "index": 0 },
-          { "node": "Créer dans CRM", "type": "main", "index": 0 }
+          {
+            "node": "Notifier Discord",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email de confirmation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Créer dans CRM",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Notifier Discord": {
-      "main": [[{ "node": "Réponse Webhook", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Réponse Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -168,7 +259,17 @@
     "callerPolicy": "workflowsFromSameOwner"
   },
   "versionId": "a1b2c3d4-0001-0001-0001-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
-  "id": "nexum-wf-01-01",
-  "tags": [{ "id": "tag-leads", "name": "leads" }, { "id": "tag-p1", "name": "priorite-1" }]
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-leads",
+      "name": "leads"
+    },
+    {
+      "id": "tag-p1",
+      "name": "priorite-1"
+    }
+  ]
 }

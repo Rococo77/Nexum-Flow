@@ -6,9 +6,19 @@
       "name": "Schedule – mercredi 7h",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
-        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 7 * * 3" }] }
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 3"
+            }
+          ]
+        }
       }
     },
     {
@@ -16,7 +26,10 @@
       "name": "Liste concurrents",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3,
-      "position": [500, 300],
+      "position": [
+        500,
+        300
+      ],
       "parameters": {
         "mode": "manual",
         "fields": {
@@ -34,13 +47,20 @@
       "name": "Scraper chaque site",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [750, 300],
+      "position": [
+        750,
+        300
+      ],
       "parameters": {
         "method": "GET",
         "url": "={{ $json }}",
         "options": {
           "timeout": 10000,
-          "response": { "response": { "responseFormat": "text" } }
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
         }
       }
     },
@@ -49,7 +69,10 @@
       "name": "Analyser concurrence avec IA",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
-      "position": [1000, 300],
+      "position": [
+        1000,
+        300
+      ],
       "parameters": {
         "operation": "message",
         "modelId": "gpt-4o",
@@ -65,7 +88,10 @@
             }
           ]
         },
-        "options": { "temperature": 0.3, "maxTokens": 1500 }
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 1500
+        }
       }
     },
     {
@@ -73,7 +99,10 @@
       "name": "Parser analyse concurrent",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1250, 300],
+      "position": [
+        1250,
+        300
+      ],
       "parameters": {
         "jsCode": "const content = $input.item.json.message.content;\nlet analyse;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  analyse = JSON.parse(match[0]);\n} catch(e) { analyse = { resume: content, url: '' }; }\nreturn analyse;"
       }
@@ -83,7 +112,10 @@
       "name": "Agréger tous les rapports",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
-      "position": [1500, 300],
+      "position": [
+        1500,
+        300
+      ],
       "parameters": {
         "mode": "combineBySql",
         "query": "SELECT * FROM input1"
@@ -94,7 +126,10 @@
       "name": "Synthèse globale IA",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
-      "position": [1750, 300],
+      "position": [
+        1750,
+        300
+      ],
       "parameters": {
         "operation": "message",
         "modelId": "gpt-4o",
@@ -110,7 +145,10 @@
             }
           ]
         },
-        "options": { "temperature": 0.4, "maxTokens": 1500 }
+        "options": {
+          "temperature": 0.4,
+          "maxTokens": 1500
+        }
       }
     },
     {
@@ -118,11 +156,14 @@
       "name": "Rapport Discord veille",
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
-      "position": [2000, 200],
+      "position": [
+        2000,
+        200
+      ],
       "parameters": {
         "operation": "sendMessage",
         "guildId": "={{ $env.DISCORD_GUILD_ID }}",
-        "channelId": "="{{ $env.DISCORD_VEILLE_CHANNEL_ID }}",
+        "channelId": "={{ $env.DISCORD_VEILLE_CHANNEL_ID }}",
         "content": "🔍 **Rapport Veille Concurrentielle – {{ new Date().toLocaleDateString('fr-FR') }}**\n\n{{ $json.message.content }}"
       }
     },
@@ -131,7 +172,10 @@
       "name": "Email rapport veille",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [2000, 420],
+      "position": [
+        2000,
+        420
+      ],
       "parameters": {
         "operation": "send",
         "toList": "={{ $env.SMTP_USER }}",
@@ -143,36 +187,109 @@
   ],
   "connections": {
     "Schedule – mercredi 7h": {
-      "main": [[{ "node": "Liste concurrents", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Liste concurrents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Liste concurrents": {
-      "main": [[{ "node": "Scraper chaque site", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Scraper chaque site",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Scraper chaque site": {
-      "main": [[{ "node": "Analyser concurrence avec IA", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Analyser concurrence avec IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Analyser concurrence avec IA": {
-      "main": [[{ "node": "Parser analyse concurrent", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parser analyse concurrent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parser analyse concurrent": {
-      "main": [[{ "node": "Agréger tous les rapports", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Agréger tous les rapports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Agréger tous les rapports": {
-      "main": [[{ "node": "Synthèse globale IA", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Synthèse globale IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Synthèse globale IA": {
       "main": [
         [
-          { "node": "Rapport Discord veille", "type": "main", "index": 0 },
-          { "node": "Email rapport veille", "type": "main", "index": 0 }
+          {
+            "node": "Rapport Discord veille",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email rapport veille",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }
   },
   "active": false,
-  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
   "versionId": "a1b2c3d4-0018-0018-0018-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
-  "id": "nexum-wf-07-01",
-  "tags": [{ "id": "tag-veille", "name": "veille" }, { "id": "tag-ia", "name": "ia" }, { "id": "tag-p2", "name": "priorite-2" }]
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-veille",
+      "name": "veille"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    },
+    {
+      "id": "tag-p2",
+      "name": "priorite-2"
+    }
+  ]
 }

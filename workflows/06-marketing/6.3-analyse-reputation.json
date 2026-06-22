@@ -6,9 +6,19 @@
       "name": "Schedule – chaque lundi 8h",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
-        "rule": { "interval": [{ "field": "cronExpression", "expression": "0 8 * * 1" }] }
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1"
+            }
+          ]
+        }
       }
     },
     {
@@ -16,17 +26,32 @@
       "name": "Scraper avis Google Places",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [500, 200],
+      "position": [
+        500,
+        200
+      ],
       "parameters": {
         "method": "GET",
         "url": "https://maps.googleapis.com/maps/api/place/details/json",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "place_id", "value": "={{ $env.GOOGLE_PLACE_ID }}" },
-            { "name": "fields", "value": "reviews,rating,user_ratings_total" },
-            { "name": "key", "value": "={{ $env.GOOGLE_MAPS_API_KEY }}" },
-            { "name": "language", "value": "fr" }
+            {
+              "name": "place_id",
+              "value": "={{ $env.GOOGLE_PLACE_ID }}"
+            },
+            {
+              "name": "fields",
+              "value": "reviews,rating,user_ratings_total"
+            },
+            {
+              "name": "key",
+              "value": "={{ $env.GOOGLE_MAPS_API_KEY }}"
+            },
+            {
+              "name": "language",
+              "value": "fr"
+            }
           ]
         }
       }
@@ -36,16 +61,29 @@
       "name": "Récupérer avis Trustpilot",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [500, 420],
+      "position": [
+        500,
+        420
+      ],
       "parameters": {
         "method": "GET",
         "url": "https://api.trustpilot.com/v1/business-units/find",
         "sendQuery": true,
         "queryParameters": {
-          "parameters": [{ "name": "name", "value": "={{ $env.TRUSTPILOT_DOMAIN }}" }]
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $env.TRUSTPILOT_DOMAIN }}"
+            }
+          ]
         },
         "headers": {
-          "parameters": [{ "name": "apikey", "value": "={{ $env.TRUSTPILOT_API_KEY }}" }]
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.TRUSTPILOT_API_KEY }}"
+            }
+          ]
         }
       }
     },
@@ -54,7 +92,10 @@
       "name": "Consolider avis",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [750, 300],
+      "position": [
+        750,
+        300
+      ],
       "parameters": {
         "jsCode": "const google = $('Scraper avis Google Places').item.json.result || {};\nconst googleReviews = (google.reviews || []).slice(0, 10);\nconst noteGoogle = google.rating || 0;\nconst nbAvisGoogle = google.user_ratings_total || 0;\n\nconst trustpilot = $('Récupérer avis Trustpilot').item.json || {};\nconst noteTrustpilot = trustpilot.score?.trustScore || 0;\nconst nbAvisTrustpilot = trustpilot.numberOfReviews?.total || 0;\n\nconst tousLesAvis = [\n  ...googleReviews.map(r => ({ source: 'Google', auteur: r.author_name, note: r.rating, texte: r.text, date: new Date(r.time * 1000).toISOString() })),\n];\n\nconst noteGlobale = (noteGoogle * nbAvisGoogle + noteTrustpilot * nbAvisTrustpilot) / Math.max(nbAvisGoogle + nbAvisTrustpilot, 1);\n\nreturn {\n  note_google: noteGoogle,\n  nb_avis_google: nbAvisGoogle,\n  note_trustpilot: noteTrustpilot,\n  nb_avis_trustpilot: nbAvisTrustpilot,\n  note_globale: Math.round(noteGlobale * 10) / 10,\n  total_avis: nbAvisGoogle + nbAvisTrustpilot,\n  avis_recents: tousLesAvis,\n  periode_analyse: new Date().toLocaleDateString('fr-FR')\n};"
       }
@@ -64,7 +105,10 @@
       "name": "Analyser sentiments avec IA",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
-      "position": [1000, 300],
+      "position": [
+        1000,
+        300
+      ],
       "parameters": {
         "operation": "message",
         "modelId": "gpt-4o",
@@ -80,7 +124,10 @@
             }
           ]
         },
-        "options": { "temperature": 0.3, "maxTokens": 1500 }
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 1500
+        }
       }
     },
     {
@@ -88,7 +135,10 @@
       "name": "Parser analyse",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1250, 300],
+      "position": [
+        1250,
+        300
+      ],
       "parameters": {
         "jsCode": "const content = $input.item.json.message.content;\nlet analyse;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  analyse = JSON.parse(match[0]);\n} catch(e) { analyse = { sentiment_global: 'neutre', resume_executif: content }; }\nreturn { ...analyse, data: $('Consolider avis').item.json };"
       }
@@ -98,7 +148,10 @@
       "name": "Rapport Discord",
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
-      "position": [1500, 200],
+      "position": [
+        1500,
+        200
+      ],
       "parameters": {
         "operation": "sendMessage",
         "guildId": "={{ $env.DISCORD_GUILD_ID }}",
@@ -111,7 +164,10 @@
       "name": "Email rapport réputation",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [1500, 420],
+      "position": [
+        1500,
+        420
+      ],
       "parameters": {
         "operation": "send",
         "toList": "={{ $env.SMTP_USER }}",
@@ -125,36 +181,101 @@
     "Schedule – chaque lundi 8h": {
       "main": [
         [
-          { "node": "Scraper avis Google Places", "type": "main", "index": 0 },
-          { "node": "Récupérer avis Trustpilot", "type": "main", "index": 0 }
+          {
+            "node": "Scraper avis Google Places",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Récupérer avis Trustpilot",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Scraper avis Google Places": {
-      "main": [[{ "node": "Consolider avis", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Consolider avis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Récupérer avis Trustpilot": {
-      "main": [[{ "node": "Consolider avis", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Consolider avis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Consolider avis": {
-      "main": [[{ "node": "Analyser sentiments avec IA", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Analyser sentiments avec IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Analyser sentiments avec IA": {
-      "main": [[{ "node": "Parser analyse", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parser analyse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parser analyse": {
       "main": [
         [
-          { "node": "Rapport Discord", "type": "main", "index": 0 },
-          { "node": "Email rapport réputation", "type": "main", "index": 0 }
+          {
+            "node": "Rapport Discord",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email rapport réputation",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }
   },
   "active": false,
-  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
   "versionId": "a1b2c3d4-0017-0017-0017-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
-  "id": "nexum-wf-06-03",
-  "tags": [{ "id": "tag-marketing", "name": "marketing" }, { "id": "tag-ia", "name": "ia" }, { "id": "tag-p3", "name": "priorite-3" }]
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-marketing",
+      "name": "marketing"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    },
+    {
+      "id": "tag-p3",
+      "name": "priorite-3"
+    }
+  ]
 }

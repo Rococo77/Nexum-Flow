@@ -6,10 +6,18 @@
       "name": "Schedule – chaque matin 8h",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
         "rule": {
-          "interval": [{ "field": "cronExpression", "expression": "0 8 * * 1-5" }]
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1-5"
+            }
+          ]
         }
       }
     },
@@ -18,7 +26,10 @@
       "name": "Récupérer devis en attente",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [500, 300],
+      "position": [
+        500,
+        300
+      ],
       "parameters": {
         "operation": "executeQuery",
         "query": "SELECT d.*, c.email, c.prenom, c.nom, c.entreprise\nFROM devis d\nJOIN clients c ON d.client_id = c.id\nWHERE d.statut = 'envoye'\n  AND d.date_validite > NOW()\n  AND d.nb_relances < 2\n  AND (\n    d.derniere_relance IS NULL\n    OR (\n      d.nb_relances = 0 AND d.date_envoi <= NOW() - INTERVAL '3 days'\n    )\n    OR (\n      d.nb_relances = 1 AND d.derniere_relance <= NOW() - INTERVAL '4 days'\n    )\n  )",
@@ -30,7 +41,10 @@
       "name": "Des devis à relancer ?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [750, 300],
+      "position": [
+        750,
+        300
+      ],
       "parameters": {
         "conditions": {
           "conditions": [
@@ -38,7 +52,10 @@
               "id": "cond-1",
               "leftValue": "={{ $json.length }}",
               "rightValue": 0,
-              "operator": { "type": "number", "operation": "gt" }
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
             }
           ],
           "combinator": "and"
@@ -50,7 +67,10 @@
       "name": "Première ou deuxième relance ?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1000, 200],
+      "position": [
+        1000,
+        200
+      ],
       "parameters": {
         "conditions": {
           "conditions": [
@@ -58,7 +78,10 @@
               "id": "cond-2",
               "leftValue": "={{ $json.nb_relances }}",
               "rightValue": 0,
-              "operator": { "type": "number", "operation": "equals" }
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -70,7 +93,10 @@
       "name": "Email relance J+3",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [1250, 100],
+      "position": [
+        1250,
+        100
+      ],
       "parameters": {
         "operation": "send",
         "toList": "={{ $json.email }}",
@@ -84,7 +110,10 @@
       "name": "Email relance J+7 (finale)",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [1250, 320],
+      "position": [
+        1250,
+        320
+      ],
       "parameters": {
         "operation": "send",
         "toList": "={{ $json.email }}",
@@ -98,7 +127,10 @@
       "name": "Mettre à jour compteur relances",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [1500, 200],
+      "position": [
+        1500,
+        200
+      ],
       "parameters": {
         "operation": "executeQuery",
         "query": "UPDATE devis SET nb_relances = nb_relances + 1, derniere_relance = NOW() WHERE id = $1",
@@ -113,7 +145,10 @@
       "name": "Notifier commercial",
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
-      "position": [1750, 200],
+      "position": [
+        1750,
+        200
+      ],
       "parameters": {
         "operation": "sendMessage",
         "guildId": "={{ $env.DISCORD_GUILD_ID }}",
@@ -124,37 +159,108 @@
   ],
   "connections": {
     "Schedule – chaque matin 8h": {
-      "main": [[{ "node": "Récupérer devis en attente", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Récupérer devis en attente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Récupérer devis en attente": {
-      "main": [[{ "node": "Des devis à relancer ?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Des devis à relancer ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Des devis à relancer ?": {
       "main": [
-        [{ "node": "Première ou deuxième relance ?", "type": "main", "index": 0 }],
+        [
+          {
+            "node": "Première ou deuxième relance ?",
+            "type": "main",
+            "index": 0
+          }
+        ],
         []
       ]
     },
     "Première ou deuxième relance ?": {
       "main": [
-        [{ "node": "Email relance J+3", "type": "main", "index": 0 }],
-        [{ "node": "Email relance J+7 (finale)", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Email relance J+3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email relance J+7 (finale)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Email relance J+3": {
-      "main": [[{ "node": "Mettre à jour compteur relances", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Mettre à jour compteur relances",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Email relance J+7 (finale)": {
-      "main": [[{ "node": "Mettre à jour compteur relances", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Mettre à jour compteur relances",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Mettre à jour compteur relances": {
-      "main": [[{ "node": "Notifier commercial", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Notifier commercial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
-  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
   "versionId": "a1b2c3d4-0003-0003-0003-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
-  "id": "nexum-wf-02-01",
-  "tags": [{ "id": "tag-commercial", "name": "commercial" }, { "id": "tag-p1", "name": "priorite-1" }]
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-commercial",
+      "name": "commercial"
+    },
+    {
+      "id": "tag-p1",
+      "name": "priorite-1"
+    }
+  ]
 }

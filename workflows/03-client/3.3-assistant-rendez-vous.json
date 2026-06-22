@@ -6,7 +6,10 @@
       "name": "Webhook Demande RDV",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "demande-rdv",
@@ -19,7 +22,10 @@
       "name": "Récupérer créneaux disponibles",
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1,
-      "position": [500, 300],
+      "position": [
+        500,
+        300
+      ],
       "parameters": {
         "operation": "getAll",
         "calendarId": "={{ $env.GOOGLE_CALENDAR_ID }}",
@@ -36,7 +42,10 @@
       "name": "Calculer créneaux libres",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [750, 300],
+      "position": [
+        750,
+        300
+      ],
       "parameters": {
         "jsCode": "const evenements = $input.all().map(i => i.json);\nconst creneauxProposes = [];\nconst maintenant = new Date();\n\nfor (let j = 1; j <= 14; j++) {\n  const date = new Date(maintenant);\n  date.setDate(date.getDate() + j);\n  if ([0, 6].includes(date.getDay())) continue;\n\n  const creneaux = [\n    { heure: 9, duree: 60 },\n    { heure: 11, duree: 60 },\n    { heure: 14, duree: 60 },\n    { heure: 16, duree: 60 }\n  ];\n\n  for (const creneau of creneaux) {\n    const debut = new Date(date);\n    debut.setHours(creneau.heure, 0, 0, 0);\n    const fin = new Date(debut);\n    fin.setMinutes(fin.getMinutes() + creneau.duree);\n\n    const occupe = evenements.some(e => {\n      const eDebut = new Date(e.start?.dateTime || e.start?.date);\n      const eFin = new Date(e.end?.dateTime || e.end?.date);\n      return debut < eFin && fin > eDebut;\n    });\n\n    if (!occupe && creneauxProposes.length < 5) {\n      creneauxProposes.push({\n        debut: debut.toISOString(),\n        fin: fin.toISOString(),\n        label: debut.toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })\n      });\n    }\n  }\n}\n\nreturn {\n  creneaux: creneauxProposes,\n  demandeur: $('Webhook Demande RDV').item.json\n};"
       }
@@ -46,7 +55,10 @@
       "name": "Email propositions créneaux",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [1000, 200],
+      "position": [
+        1000,
+        200
+      ],
       "parameters": {
         "operation": "send",
         "toList": "={{ $json.demandeur.email }}",
@@ -60,7 +72,10 @@
       "name": "Webhook Confirmation RDV",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [250, 500],
+      "position": [
+        250,
+        500
+      ],
       "parameters": {
         "httpMethod": "GET",
         "path": "confirmer-rdv",
@@ -73,7 +88,10 @@
       "name": "Valider paramètres confirmation",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [375, 500],
+      "position": [
+        375,
+        500
+      ],
       "parameters": {
         "jsCode": "const query = $input.item.json.query || {};\nconst email = (query.client || '').trim();\nconst creneau = (query.creneau || '').trim();\n\n// Validation email format\nconst emailRegex = /^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$/;\nif (!emailRegex.test(email)) throw new Error('Email de confirmation invalide');\n\n// Validation créneau : doit être une date ISO future\nconst dateRdv = new Date(creneau);\nif (isNaN(dateRdv.getTime())) throw new Error('Créneau invalide');\nif (dateRdv < new Date()) throw new Error('Créneau dans le passé');\nif (dateRdv > new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) throw new Error('Créneau trop éloigné');\n\nreturn { email_valide: email, creneau_valide: dateRdv.toISOString() };"
       }
@@ -83,7 +101,10 @@
       "name": "Créer RDV confirmé",
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1,
-      "position": [500, 500],
+      "position": [
+        500,
+        500
+      ],
       "parameters": {
         "operation": "create",
         "calendarId": "={{ $env.GOOGLE_CALENDAR_ID }}",
@@ -100,7 +121,10 @@
       "name": "Email confirmation finale",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [750, 500],
+      "position": [
+        750,
+        500
+      ],
       "parameters": {
         "operation": "send",
         "toList": "={{ $('Valider paramètres confirmation').item.json.email_valide }}",
@@ -114,43 +138,118 @@
       "name": "Réponse confirmation page",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1000, 500],
+      "position": [
+        1000,
+        500
+      ],
       "parameters": {
         "options": {
           "responseCode": 200,
           "responseData": "<html><body><h2>✅ Rendez-vous confirmé !</h2><p>Vous recevrez un email de confirmation.</p></body></html>",
-          "responseHeaders": { "entries": [{ "name": "Content-Type", "value": "text/html" }] }
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
         }
       }
     }
   ],
   "connections": {
     "Webhook Demande RDV": {
-      "main": [[{ "node": "Récupérer créneaux disponibles", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Récupérer créneaux disponibles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Récupérer créneaux disponibles": {
-      "main": [[{ "node": "Calculer créneaux libres", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Calculer créneaux libres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Calculer créneaux libres": {
-      "main": [[{ "node": "Email propositions créneaux", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Email propositions créneaux",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Webhook Confirmation RDV": {
-      "main": [[{ "node": "Valider paramètres confirmation", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Valider paramètres confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Valider paramètres confirmation": {
-      "main": [[{ "node": "Créer RDV confirmé", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Créer RDV confirmé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Créer RDV confirmé": {
-      "main": [[{ "node": "Email confirmation finale", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Email confirmation finale",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Email confirmation finale": {
-      "main": [[{ "node": "Réponse confirmation page", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Réponse confirmation page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
-  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
   "versionId": "a1b2c3d4-0008-0008-0008-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
-  "id": "nexum-wf-03-03",
-  "tags": [{ "id": "tag-client", "name": "client" }]
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-client",
+      "name": "client"
+    }
+  ]
 }

@@ -6,7 +6,10 @@
       "name": "Webhook Génération Document",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "generer-document",
@@ -19,7 +22,10 @@
       "name": "Type de document ?",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
-      "position": [500, 300],
+      "position": [
+        500,
+        300
+      ],
       "parameters": {
         "mode": "expression",
         "output": "={{ $json.type_document }}"
@@ -30,7 +36,10 @@
       "name": "Prompt Contrat",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3,
-      "position": [750, 100],
+      "position": [
+        750,
+        100
+      ],
       "parameters": {
         "mode": "manual",
         "fields": {
@@ -48,7 +57,10 @@
       "name": "Prompt Compte-rendu",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3,
-      "position": [750, 280],
+      "position": [
+        750,
+        280
+      ],
       "parameters": {
         "mode": "manual",
         "fields": {
@@ -66,7 +78,10 @@
       "name": "Prompt Courrier",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3,
-      "position": [750, 460],
+      "position": [
+        750,
+        460
+      ],
       "parameters": {
         "mode": "manual",
         "fields": {
@@ -84,7 +99,10 @@
       "name": "Générer document avec IA",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
-      "position": [1000, 300],
+      "position": [
+        1000,
+        300
+      ],
       "parameters": {
         "operation": "message",
         "modelId": "gpt-4o",
@@ -100,7 +118,10 @@
             }
           ]
         },
-        "options": { "temperature": 0.4, "maxTokens": 3000 }
+        "options": {
+          "temperature": 0.4,
+          "maxTokens": 3000
+        }
       }
     },
     {
@@ -108,18 +129,33 @@
       "name": "Convertir en PDF",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1250, 300],
+      "position": [
+        1250,
+        300
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $env.API_HOST }}/api/v1/documents/markdown-to-pdf",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "content", "value": "={{ $json.message.content }}" },
-            { "name": "titre", "value": "={{ $('Webhook Génération Document').item.json.type_document }}" }
+            {
+              "name": "content",
+              "value": "={{ $json.message.content }}"
+            },
+            {
+              "name": "titre",
+              "value": "={{ $('Webhook Génération Document').item.json.type_document }}"
+            }
           ]
         },
-        "options": { "response": { "response": { "responseFormat": "file" } } }
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
       }
     },
     {
@@ -127,14 +163,20 @@
       "name": "Archiver dans MinIO",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1500, 200],
+      "position": [
+        1500,
+        200
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $env.API_HOST }}/api/v1/storage/upload",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "chemin", "value": "Clients/{{ $('Webhook Génération Document').item.json.client_nom }}/Documents/{{ $('Webhook Génération Document').item.json.type_document }}_{{ new Date().toISOString().split('T')[0] }}.pdf" }
+            {
+              "name": "chemin",
+              "value": "Clients/{{ $('Webhook Génération Document').item.json.client_nom }}/Documents/{{ $('Webhook Génération Document').item.json.type_document }}_{{ new Date().toISOString().split('T')[0] }}.pdf"
+            }
           ]
         }
       }
@@ -144,7 +186,10 @@
       "name": "Réponse avec document",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1500, 420],
+      "position": [
+        1500,
+        420
+      ],
       "parameters": {
         "options": {
           "responseCode": 200,
@@ -155,40 +200,123 @@
   ],
   "connections": {
     "Webhook Génération Document": {
-      "main": [[{ "node": "Type de document ?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Type de document ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Type de document ?": {
       "main": [
-        [{ "node": "Prompt Contrat", "type": "main", "index": 0 }],
-        [{ "node": "Prompt Compte-rendu", "type": "main", "index": 0 }],
-        [{ "node": "Prompt Courrier", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Prompt Contrat",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prompt Compte-rendu",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prompt Courrier",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Prompt Contrat": {
-      "main": [[{ "node": "Générer document avec IA", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Générer document avec IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Prompt Compte-rendu": {
-      "main": [[{ "node": "Générer document avec IA", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Générer document avec IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Prompt Courrier": {
-      "main": [[{ "node": "Générer document avec IA", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Générer document avec IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Générer document avec IA": {
-      "main": [[{ "node": "Convertir en PDF", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Convertir en PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Convertir en PDF": {
       "main": [
         [
-          { "node": "Archiver dans MinIO", "type": "main", "index": 0 },
-          { "node": "Réponse avec document", "type": "main", "index": 0 }
+          {
+            "node": "Archiver dans MinIO",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Réponse avec document",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }
   },
   "active": false,
-  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
   "versionId": "a1b2c3d4-0011-0011-0011-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
-  "id": "nexum-wf-04-03",
-  "tags": [{ "id": "tag-admin", "name": "administratif" }, { "id": "tag-ia", "name": "ia" }, { "id": "tag-p2", "name": "priorite-2" }]
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-admin",
+      "name": "administratif"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    },
+    {
+      "id": "tag-p2",
+      "name": "priorite-2"
+    }
+  ]
 }

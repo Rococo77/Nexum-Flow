@@ -6,7 +6,10 @@
       "name": "Webhook Formulaire Devis",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "generer-devis",
@@ -19,7 +22,10 @@
       "name": "Récupérer infos client",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [500, 300],
+      "position": [
+        500,
+        300
+      ],
       "parameters": {
         "operation": "select",
         "schema": "public",
@@ -27,7 +33,12 @@
         "returnAll": false,
         "limit": 1,
         "where": {
-          "values": [{ "column": "id", "value": "={{ $json.client_id }}" }]
+          "values": [
+            {
+              "column": "id",
+              "value": "={{ $json.client_id }}"
+            }
+          ]
         }
       }
     },
@@ -36,7 +47,10 @@
       "name": "Générer contenu avec IA",
       "type": "n8n-nodes-base.openAi",
       "typeVersion": 1,
-      "position": [750, 300],
+      "position": [
+        750,
+        300
+      ],
       "parameters": {
         "operation": "message",
         "modelId": "gpt-4o",
@@ -52,7 +66,10 @@
             }
           ]
         },
-        "options": { "temperature": 0.4, "maxTokens": 1500 }
+        "options": {
+          "temperature": 0.4,
+          "maxTokens": 1500
+        }
       }
     },
     {
@@ -60,7 +77,10 @@
       "name": "Parser et calculer totaux",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1000, 300],
+      "position": [
+        1000,
+        300
+      ],
       "parameters": {
         "jsCode": "const aiContent = $input.item.json.message.content;\nlet devisData;\ntry {\n  const match = aiContent.match(/\\{[\\s\\S]*\\}/);\n  devisData = JSON.parse(match[0]);\n} catch(e) { throw new Error('Parsing IA impossible: ' + e.message); }\n\nconst lignes = devisData.lignes || [];\nconst totalHT = lignes.reduce((sum, l) => sum + (l.quantite * l.prix_unitaire), 0);\nconst tva = totalHT * 0.20;\nconst totalTTC = totalHT + tva;\n\nconst numero = 'DEV-' + new Date().getFullYear() + '-' + String(Date.now()).slice(-6);\n\nreturn {\n  ...devisData,\n  numero,\n  client_id: $('Webhook Formulaire Devis').item.json.client_id,\n  montant_ht: Math.round(totalHT * 100) / 100,\n  montant_tva: Math.round(tva * 100) / 100,\n  montant_ttc: Math.round(totalTTC * 100) / 100,\n  date_emission: new Date().toISOString().split('T')[0],\n  date_validite: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],\n  client: $('Récupérer infos client').item.json\n};"
       }
@@ -70,15 +90,29 @@
       "name": "Générer PDF via API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1250, 300],
+      "position": [
+        1250,
+        300
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $env.API_HOST }}/api/v1/documents/devis/pdf",
         "sendBody": true,
         "bodyParameters": {
-          "parameters": [{ "name": "data", "value": "={{ JSON.stringify($json) }}" }]
+          "parameters": [
+            {
+              "name": "data",
+              "value": "={{ JSON.stringify($json) }}"
+            }
+          ]
         },
-        "options": { "response": { "response": { "responseFormat": "file" } } }
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
       }
     },
     {
@@ -86,13 +120,18 @@
       "name": "Enregistrer devis en base",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [1500, 300],
+      "position": [
+        1500,
+        300
+      ],
       "parameters": {
         "operation": "insert",
         "schema": "public",
         "table": "devis",
         "columns": "client_id, numero, montant_ht, montant_ttc, statut, date_validite, notes",
-        "options": { "returnFields": "id, numero" }
+        "options": {
+          "returnFields": "id, numero"
+        }
       }
     },
     {
@@ -100,14 +139,23 @@
       "name": "Envoyer pour validation",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [1750, 200],
+      "position": [
+        1750,
+        200
+      ],
       "parameters": {
         "operation": "send",
         "toList": "={{ $env.SMTP_USER }}",
         "subject": "Devis {{ $json.numero }} à valider – {{ $json.client.entreprise }}",
         "emailType": "html",
         "message": "<html><body><p>Un nouveau pré-devis a été généré automatiquement.</p><p><strong>N° :</strong> {{ $json.numero }}<br><strong>Client :</strong> {{ $json.client.entreprise }}<br><strong>Montant HT :</strong> {{ $json.montant_ht }}€<br><strong>Montant TTC :</strong> {{ $json.montant_ttc }}€<br><strong>Validité :</strong> {{ $json.date_validite }}</p><p>Veuillez valider ou ajuster ce devis avant envoi au client.</p></body></html>",
-        "attachmentsUi": { "attachmentsBinary": [{ "property": "data" }] }
+        "attachmentsUi": {
+          "attachmentsBinary": [
+            {
+              "property": "data"
+            }
+          ]
+        }
       }
     },
     {
@@ -115,7 +163,10 @@
       "name": "Réponse succès",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1750, 400],
+      "position": [
+        1750,
+        400
+      ],
       "parameters": {
         "options": {
           "responseCode": 200,
@@ -126,33 +177,94 @@
   ],
   "connections": {
     "Webhook Formulaire Devis": {
-      "main": [[{ "node": "Récupérer infos client", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Récupérer infos client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Récupérer infos client": {
-      "main": [[{ "node": "Générer contenu avec IA", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Générer contenu avec IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Générer contenu avec IA": {
-      "main": [[{ "node": "Parser et calculer totaux", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parser et calculer totaux",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parser et calculer totaux": {
-      "main": [[{ "node": "Générer PDF via API", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Générer PDF via API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Générer PDF via API": {
-      "main": [[{ "node": "Enregistrer devis en base", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Enregistrer devis en base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Enregistrer devis en base": {
       "main": [
         [
-          { "node": "Envoyer pour validation", "type": "main", "index": 0 },
-          { "node": "Réponse succès", "type": "main", "index": 0 }
+          {
+            "node": "Envoyer pour validation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Réponse succès",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }
   },
   "active": false,
-  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
   "versionId": "a1b2c3d4-0004-0004-0004-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
-  "id": "nexum-wf-02-02",
-  "tags": [{ "id": "tag-commercial", "name": "commercial" }, { "id": "tag-ia", "name": "ia" }]
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-commercial",
+      "name": "commercial"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    }
+  ]
 }

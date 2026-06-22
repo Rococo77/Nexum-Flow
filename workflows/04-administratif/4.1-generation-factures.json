@@ -6,7 +6,10 @@
       "name": "Webhook Paiement reçu (Stripe)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "stripe-webhook",
@@ -19,7 +22,10 @@
       "name": "Vérifier signature Stripe",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [375, 300],
+      "position": [
+        375,
+        300
+      ],
       "parameters": {
         "jsCode": "const crypto = require('crypto');\nconst rawBody = $input.item.binary?.data\n  ? Buffer.from($input.item.binary.data, 'base64').toString('utf8')\n  : JSON.stringify($input.item.json);\nconst sig = $input.item.json.headers?.['stripe-signature'] || '';\nconst secret = process.env.STRIPE_WEBHOOK_SECRET || '';\n\nif (!secret) throw new Error('STRIPE_WEBHOOK_SECRET manquant');\nif (!sig) throw new Error('En-tête stripe-signature absent');\n\nconst parts = sig.split(',').reduce((acc, part) => {\n  const [k, v] = part.split('=');\n  acc[k] = v;\n  return acc;\n}, {});\n\nconst timestamp = parts['t'];\nconst v1 = parts['v1'];\nif (!timestamp || !v1) throw new Error('Signature Stripe malformée');\n\nconst tolerance = 300; // 5 minutes\nif (Math.abs(Date.now() / 1000 - Number(timestamp)) > tolerance)\n  throw new Error('Timestamp Stripe trop ancien (replay attack)');\n\nconst signedPayload = `${timestamp}.${rawBody}`;\nconst expected = crypto\n  .createHmac('sha256', secret)\n  .update(signedPayload, 'utf8')\n  .digest('hex');\n\nif (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1)))\n  throw new Error('Signature Stripe invalide');\n\nreturn $input.item.json;"
       }
@@ -29,7 +35,10 @@
       "name": "Événement payment_intent.succeeded ?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [500, 300],
+      "position": [
+        500,
+        300
+      ],
       "parameters": {
         "conditions": {
           "conditions": [
@@ -37,7 +46,10 @@
               "id": "cond-1",
               "leftValue": "={{ $json.type }}",
               "rightValue": "payment_intent.succeeded",
-              "operator": { "type": "string", "operation": "equals" }
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -49,7 +61,10 @@
       "name": "Récupérer client et devis",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [750, 200],
+      "position": [
+        750,
+        200
+      ],
       "parameters": {
         "operation": "executeQuery",
         "query": "SELECT c.*, d.id as devis_id, d.numero as devis_numero, d.montant_ht, d.montant_ttc\nFROM clients c\nJOIN devis d ON d.client_id = c.id\nWHERE c.email = $1\n  AND d.statut = 'envoye'\nORDER BY d.created_at DESC\nLIMIT 1",
@@ -64,7 +79,10 @@
       "name": "Générer numéro de facture",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1000, 200],
+      "position": [
+        1000,
+        200
+      ],
       "parameters": {
         "jsCode": "const now = new Date();\nconst annee = now.getFullYear();\nconst mois = String(now.getMonth() + 1).padStart(2, '0');\nconst timestamp = String(Date.now()).slice(-4);\nconst numero = `FACT-${annee}${mois}-${timestamp}`;\nconst montantHT = $input.item.json.montant_ht || ($('Webhook Paiement reçu (Stripe)').item.json.data.object.amount / 100 / 1.20);\nconst montantTVA = montantHT * 0.20;\nconst montantTTC = montantHT + montantTVA;\n\nreturn {\n  ...($input.item.json),\n  numero_facture: numero,\n  montant_ht: Math.round(montantHT * 100) / 100,\n  montant_tva: Math.round(montantTVA * 100) / 100,\n  montant_ttc: Math.round(montantTTC * 100) / 100,\n  date_emission: now.toISOString().split('T')[0],\n  date_echeance: now.toISOString().split('T')[0]\n};"
       }
@@ -74,15 +92,29 @@
       "name": "Générer PDF facture",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1250, 200],
+      "position": [
+        1250,
+        200
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $env.API_HOST }}/api/v1/documents/facture/pdf",
         "sendBody": true,
         "bodyParameters": {
-          "parameters": [{ "name": "data", "value": "={{ JSON.stringify($json) }}" }]
+          "parameters": [
+            {
+              "name": "data",
+              "value": "={{ JSON.stringify($json) }}"
+            }
+          ]
         },
-        "options": { "response": { "response": { "responseFormat": "file" } } }
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
       }
     },
     {
@@ -90,7 +122,10 @@
       "name": "Enregistrer facture en base",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [1500, 200],
+      "position": [
+        1500,
+        200
+      ],
       "parameters": {
         "operation": "insert",
         "schema": "public",
@@ -100,7 +135,9 @@
           "statut": "payee",
           "date_paiement": "={{ new Date().toISOString() }}"
         },
-        "options": { "returnFields": "id, numero" }
+        "options": {
+          "returnFields": "id, numero"
+        }
       }
     },
     {
@@ -108,15 +145,24 @@
       "name": "Archiver dans MinIO",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1750, 100],
+      "position": [
+        1750,
+        100
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $env.API_HOST }}/api/v1/storage/upload",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "chemin", "value": "Clients/{{ $('Récupérer client et devis').item.json.entreprise }}/Factures/{{ $('Générer numéro de facture').item.json.numero_facture }}.pdf" },
-            { "name": "client_id", "value": "={{ $('Récupérer client et devis').item.json.id }}" }
+            {
+              "name": "chemin",
+              "value": "Clients/{{ $('Récupérer client et devis').item.json.entreprise }}/Factures/{{ $('Générer numéro de facture').item.json.numero_facture }}.pdf"
+            },
+            {
+              "name": "client_id",
+              "value": "={{ $('Récupérer client et devis').item.json.id }}"
+            }
           ]
         }
       }
@@ -126,14 +172,23 @@
       "name": "Envoyer facture par email",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [1750, 280],
+      "position": [
+        1750,
+        280
+      ],
       "parameters": {
         "operation": "send",
         "toList": "={{ $('Récupérer client et devis').item.json.email }}",
         "subject": "Votre facture n°{{ $('Générer numéro de facture').item.json.numero_facture }}",
         "emailType": "html",
         "message": "<html><body><p>Bonjour {{ $('Récupérer client et devis').item.json.prenom }},</p><p>Veuillez trouver ci-joint votre facture n°<strong>{{ $('Générer numéro de facture').item.json.numero_facture }}</strong> d'un montant de <strong>{{ $('Générer numéro de facture').item.json.montant_ttc }}€ TTC</strong>.</p><p>Merci de votre confiance.</p><p>Cordialement,<br>L'équipe Nexum Flow</p></body></html>",
-        "attachmentsUi": { "attachmentsBinary": [{ "property": "data" }] }
+        "attachmentsUi": {
+          "attachmentsBinary": [
+            {
+              "property": "data"
+            }
+          ]
+        }
       }
     },
     {
@@ -141,45 +196,125 @@
       "name": "Réponse Stripe 200",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [750, 460],
-      "parameters": { "options": { "responseCode": 200 } }
+      "position": [
+        750,
+        460
+      ],
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        }
+      }
     }
   ],
   "connections": {
     "Webhook Paiement reçu (Stripe)": {
-      "main": [[{ "node": "Vérifier signature Stripe", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Vérifier signature Stripe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Vérifier signature Stripe": {
-      "main": [[{ "node": "Événement payment_intent.succeeded ?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Événement payment_intent.succeeded ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Événement payment_intent.succeeded ?": {
       "main": [
-        [{ "node": "Récupérer client et devis", "type": "main", "index": 0 }],
-        [{ "node": "Réponse Stripe 200", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Récupérer client et devis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Réponse Stripe 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Récupérer client et devis": {
-      "main": [[{ "node": "Générer numéro de facture", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Générer numéro de facture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Générer numéro de facture": {
-      "main": [[{ "node": "Générer PDF facture", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Générer PDF facture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Générer PDF facture": {
-      "main": [[{ "node": "Enregistrer facture en base", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Enregistrer facture en base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Enregistrer facture en base": {
       "main": [
         [
-          { "node": "Archiver dans MinIO", "type": "main", "index": 0 },
-          { "node": "Envoyer facture par email", "type": "main", "index": 0 }
+          {
+            "node": "Archiver dans MinIO",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Envoyer facture par email",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }
   },
   "active": false,
-  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
   "versionId": "a1b2c3d4-0009-0009-0009-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
-  "id": "nexum-wf-04-01",
-  "tags": [{ "id": "tag-admin", "name": "administratif" }, { "id": "tag-p1", "name": "priorite-1" }]
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-admin",
+      "name": "administratif"
+    },
+    {
+      "id": "tag-p1",
+      "name": "priorite-1"
+    }
+  ]
 }

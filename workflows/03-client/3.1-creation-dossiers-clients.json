@@ -6,7 +6,10 @@
       "name": "Webhook Nouveau Client",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [250, 300],
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "nouveau-client",
@@ -19,13 +22,18 @@
       "name": "Enregistrer client en base",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [500, 300],
+      "position": [
+        500,
+        300
+      ],
       "parameters": {
         "operation": "insert",
         "schema": "public",
         "table": "clients",
         "columns": "nom, prenom, email, telephone, entreprise, siret, adresse",
-        "options": { "returnFields": "id, nom, entreprise" }
+        "options": {
+          "returnFields": "id, nom, entreprise"
+        }
       }
     },
     {
@@ -33,15 +41,24 @@
       "name": "Créer dossier racine MinIO",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [750, 200],
+      "position": [
+        750,
+        200
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $env.API_HOST }}/api/v1/storage/dossier",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "chemin", "value": "={{ 'Clients/' + ($json.entreprise || $json.nom).replace(/[^a-zA-Z0-9À-ÿ_\\- ]/g, '_').replace(/\\.\\./g, '_').substring(0, 100) }}" },
-            { "name": "client_id", "value": "={{ $json.id }}" }
+            {
+              "name": "chemin",
+              "value": "={{ 'Clients/' + ($json.entreprise || $json.nom).replace(/[^a-zA-Z0-9À-ÿ_\\- ]/g, '_').replace(/\\.\\./g, '_').substring(0, 100) }}"
+            },
+            {
+              "name": "client_id",
+              "value": "={{ $json.id }}"
+            }
           ]
         }
       }
@@ -51,7 +68,10 @@
       "name": "Créer sous-dossiers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1000, 200],
+      "position": [
+        1000,
+        200
+      ],
       "parameters": {
         "jsCode": "const rawNom = $('Enregistrer client en base').item.json.entreprise || $('Enregistrer client en base').item.json.nom || 'client';\nconst clientNom = rawNom.replace(/[^a-zA-Z0-9À-ÿ_\\- ]/g, '_').replace(/\\.\\./g, '_').substring(0, 100);\nconst clientId = $('Enregistrer client en base').item.json.id;\nconst sousDossiers = ['Contrats', 'Factures', 'Documents', 'Photos', 'Correspondances', 'Technique'];\nreturn sousDossiers.map(dossier => ({\n  chemin: `Clients/${clientNom}/${dossier}`,\n  client_id: clientId,\n  nom_dossier: dossier\n}));"
       }
@@ -61,15 +81,24 @@
       "name": "Créer chaque sous-dossier",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1250, 200],
+      "position": [
+        1250,
+        200
+      ],
       "parameters": {
         "method": "POST",
         "url": "={{ $env.API_HOST }}/api/v1/storage/dossier",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "chemin", "value": "={{ $json.chemin }}" },
-            { "name": "client_id", "value": "={{ $json.client_id }}" }
+            {
+              "name": "chemin",
+              "value": "={{ $json.chemin }}"
+            },
+            {
+              "name": "client_id",
+              "value": "={{ $json.client_id }}"
+            }
           ]
         }
       }
@@ -79,12 +108,21 @@
       "name": "Créer dans Google Drive",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [750, 420],
+      "position": [
+        750,
+        420
+      ],
       "parameters": {
         "operation": "createFolder",
         "name": "={{ $('Enregistrer client en base').item.json.entreprise || $('Enregistrer client en base').item.json.nom }}",
-        "driveId": { "mode": "list", "value": "myDrive" },
-        "folderId": { "mode": "id", "value": "={{ $env.GDRIVE_CLIENTS_FOLDER_ID }}" }
+        "driveId": {
+          "mode": "list",
+          "value": "myDrive"
+        },
+        "folderId": {
+          "mode": "id",
+          "value": "={{ $env.GDRIVE_CLIENTS_FOLDER_ID }}"
+        }
       }
     },
     {
@@ -92,7 +130,10 @@
       "name": "Mettre à jour chemin dossier",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2,
-      "position": [1500, 300],
+      "position": [
+        1500,
+        300
+      ],
       "parameters": {
         "operation": "executeQuery",
         "query": "UPDATE clients SET dossier_path = $1 WHERE id = $2",
@@ -107,7 +148,10 @@
       "name": "Notifier Discord",
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
-      "position": [1750, 300],
+      "position": [
+        1750,
+        300
+      ],
       "parameters": {
         "operation": "sendMessage",
         "guildId": "={{ $env.DISCORD_GUILD_ID }}",
@@ -120,7 +164,10 @@
       "name": "Réponse succès",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1750, 460],
+      "position": [
+        1750,
+        460
+      ],
       "parameters": {
         "options": {
           "responseCode": 201,
@@ -131,41 +178,110 @@
   ],
   "connections": {
     "Webhook Nouveau Client": {
-      "main": [[{ "node": "Enregistrer client en base", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Enregistrer client en base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Enregistrer client en base": {
       "main": [
         [
-          { "node": "Créer dossier racine MinIO", "type": "main", "index": 0 },
-          { "node": "Créer dans Google Drive", "type": "main", "index": 0 }
+          {
+            "node": "Créer dossier racine MinIO",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Créer dans Google Drive",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Créer dossier racine MinIO": {
-      "main": [[{ "node": "Créer sous-dossiers", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Créer sous-dossiers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Créer sous-dossiers": {
-      "main": [[{ "node": "Créer chaque sous-dossier", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Créer chaque sous-dossier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Créer chaque sous-dossier": {
-      "main": [[{ "node": "Mettre à jour chemin dossier", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Mettre à jour chemin dossier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Créer dans Google Drive": {
-      "main": [[{ "node": "Mettre à jour chemin dossier", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Mettre à jour chemin dossier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Mettre à jour chemin dossier": {
       "main": [
         [
-          { "node": "Notifier Discord", "type": "main", "index": 0 },
-          { "node": "Réponse succès", "type": "main", "index": 0 }
+          {
+            "node": "Notifier Discord",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Réponse succès",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }
   },
   "active": false,
-  "settings": { "executionOrder": "v1", "saveManualExecutions": true },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
   "versionId": "a1b2c3d4-0006-0006-0006-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
-  "id": "nexum-wf-03-01",
-  "tags": [{ "id": "tag-client", "name": "client" }, { "id": "tag-p1", "name": "priorite-1" }]
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-client",
+      "name": "client"
+    },
+    {
+      "id": "tag-p1",
+      "name": "priorite-1"
+    }
+  ]
 }
