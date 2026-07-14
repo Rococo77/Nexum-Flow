@@ -15,11 +15,13 @@ Bibliothèque de workflows n8n réutilisables pour agences de développement et 
 | 07 – Veille | Veille concurrentielle, Veille technologique | P2 |
 | 08 – RH | Tri CV, Onboarding | – |
 | 09 – Écoles post-bac | Candidatures, Admissions, Décrochage, Assistant scolarité, Stages | P1 / P2 |
-| 10 – Vie quotidienne | Digest matinal, Budget, Courses/repas, Alertes prix, Routine santé, Veille perso, Admin, Journal, Sport, Sorties, Maison, OCR documents | perso |
+| 10 – Vie quotidienne | Digest matinal, Budget, Courses/repas, Alertes prix, Routine santé, Veille perso, Admin, Journal, Sport, Sorties, Maison, OCR documents, Newsletters, Abonnements, Dates importantes, Garde-manger, Watchlist, Relevés foyer | perso |
 | 11 – Pilotage | Suivi projet, Détection churn, Comptes-rendus, Veille appels d'offres | P1 / P2 |
 | 12 – Ops | Gestion d'erreurs, Healthcheck, Purge RGPD, Sauvegarde workflows | P1 |
+| 13 – Freelance | Briefing pré-RDV, Time-tracking, URSSAF, Portfolio, E-réputation | perso/pro |
+| 14 – Verticaux | Artisans, Restaurant, Avis Google, Immobilier, Association | packs clients |
 
-**Total : 48 workflows prêts à importer**
+**Total : 65 workflows prêts à importer**
 
 > Le module **09 – Écoles post-bac** est un pack vertical pour l'enseignement supérieur (universités, écoles d'ingénieurs/commerce, BTS) : il couvre le cycle complet candidature → admission → vie scolaire → stage.
 >
@@ -155,6 +157,11 @@ Synchronise chaque RDV vers Google Calendar et envoie un rappel email J-1.
 Propose des créneaux libres, permet la confirmation en un clic, crée l'événement Calendar.
 
 **Déclencheurs :** Webhook `/demande-rdv` + `/confirmer-rdv`
+
+#### 3.4 – Onboarding client complet `P1`
+À la signature : crée le dossier de stockage, génère le contrat IA en PDF, envoie l'email de bienvenue avec le contrat, crée le canal Discord du projet et annonce le lancement. Le méta-workflow qui assemble les briques 3.1, 4.3 et Discord.
+
+**Déclencheur :** Webhook POST `/onboarding-client` (`{ "client_id": "uuid", "projet": "..." }`)
 
 ---
 
@@ -342,6 +349,36 @@ Envoyez l'URL d'une photo de document : OCR (OCR.space) puis structuration IA (t
 
 **Déclencheur :** Webhook POST `/document`
 
+#### 10.13 – Tri des newsletters
+Chaque samedi, analyse les newsletters reçues sur 30 jours, identifie les expéditeurs les plus bruyants et envoie un bilan IA « à désabonner en priorité ».
+
+**Déclencheur :** Schedule samedi 10h
+
+#### 10.14 – Suivi des abonnements récurrents
+Détecte dans les dépenses (10.2) les prélèvements identiques qui reviennent chaque mois, alerte sur les hausses de prix et estime le coût annuel des abonnements.
+
+**Déclencheur :** Schedule le 2 du mois 8h30
+
+#### 10.15 – Rappels de dates importantes
+Anniversaires, renouvellements (CNI, assurance, contrôle technique…) : ajout par webhook, rappel automatique à J-30, J-7 et le jour J.
+
+**Déclencheurs :** Webhook POST `/date-importante` + Schedule quotidien 8h
+
+#### 10.16 – Garde-manger anti-gaspillage
+Enregistrez vos produits et leur date de péremption : alerte 3 jours avant avec une recette IA qui utilise les ingrédients concernés.
+
+**Déclencheurs :** Webhook POST `/garde-manger` + Schedule quotidien 18h
+
+#### 10.17 – Bibliothèque lecture & watchlist
+Capture de livres/films/séries (enrichissement Open Library pour les livres), puis bilan mensuel avec recommandations IA personnalisées.
+
+**Déclencheurs :** Webhook POST `/watchlist` + Schedule le 1er du mois 19h
+
+#### 10.18 – Relevés du foyer & tendance conso
+Saisie des relevés (électricité, eau, gaz, km voiture), comparaison mensuelle et conseils de sobriété IA.
+
+**Déclencheurs :** Webhook POST `/releve` + Schedule le 3 du mois 19h
+
 ---
 
 ### 11 – Pilotage
@@ -394,6 +431,68 @@ Exporte tous les workflows via l'API n8n et archive le JSON sur MinIO (`Backups/
 
 ---
 
+### 13 – Freelance / agence solo
+
+Automatisations pour le dirigeant lui-même : préparation, temps, obligations, visibilité.
+
+#### 13.1 – Briefing automatique avant RDV `P1`
+1h avant chaque RDV Google Calendar avec un client connu du CRM, compile devis en cours, impayés, risque churn et échanges récents en une fiche briefing IA postée sur Discord. Anti-doublon via la table `briefings_envoyes`.
+
+**Déclencheur :** Schedule toutes les 30 min (jours ouvrés 7h-19h)
+
+#### 13.2 – Time-tracking passif par projet
+Enregistre les activités par webhook (commits, messages, saisies manuelles) et envoie chaque vendredi un bilan des heures par projet avec analyse IA des dérives vs devis.
+
+**Déclencheurs :** Webhook POST `/activite-projet` + Schedule vendredi 17h30
+
+#### 13.3 – Rappel déclaration URSSAF avec CA pré-calculé `P1`
+À J-10, J-3 et jour J de chaque échéance trimestrielle, calcule le CA encaissé de la période et les cotisations estimées (`TAUX_COTISATIONS_URSSAF`), puis envoie le récapitulatif par email. Montants indicatifs.
+
+**Déclencheur :** Schedule quotidien 7h30 (n'envoie qu'aux échéances)
+
+#### 13.4 – Portfolio auto-alimenté
+À chaque projet livré : fiche cas-client rédigée par l'IA (besoin / solution / résultats), publiée en brouillon WordPress et archivée.
+
+**Déclencheur :** Webhook POST `/portfolio`
+
+#### 13.5 – Veille e-réputation personnelle
+Surveille les mentions de `MARQUE_PERSO` sur Hacker News et Reddit (sans clé API), déduplique, trie par pertinence IA et alerte sur Discord.
+
+**Déclencheur :** Schedule jours ouvrés 7h
+
+---
+
+### 14 – Packs verticaux
+
+Workflows prêts à déployer chez des clients finaux, par métier.
+
+#### 14.1 – Artisans : demande de devis par photo `P1`
+Le prospect envoie description + photos du chantier : qualification IA (type de travaux, urgence, fourchette de prix, questions à poser), création du lead et notification commerciale. Accusé de réception automatique.
+
+**Déclencheur :** Webhook POST `/demande-chantier`
+
+#### 14.2 – Restaurant : réservations & rappel J-1
+Confirmation immédiate par email, puis rappel automatique la veille à 18h (si la réservation est toujours active).
+
+**Déclencheur :** Webhook POST `/reservation`
+
+#### 14.3 – Réponse IA aux avis Google
+Récupère chaque jour les nouveaux avis Google (Places API), rédige une réponse personnalisée (ton adapté aux avis négatifs) et la propose au gérant sur Discord, prête à coller dans Google Business.
+
+**Déclencheur :** Schedule quotidien 10h · nécessite `GOOGLE_MAPS_API_KEY` + `GOOGLE_PLACE_ID`
+
+#### 14.4 – Immobilier : relance après visite
+Enregistre les visites, puis relance automatiquement l'acheteur à J+3 sans retour, avec copie à l'agent.
+
+**Déclencheurs :** Webhook POST `/visite` + Schedule quotidien 9h30
+
+#### 14.5 – Association : dons, reçus & cotisations
+À chaque don/cotisation : reçu PDF généré et envoyé avec l'email de remerciement, adhésion prolongée d'un an. Relance mensuelle des adhésions expirées.
+
+**Déclencheurs :** Webhook POST `/don` + Schedule le 1er du mois 9h
+
+---
+
 ## Variables d'environnement requises
 
 Voir `docker/.env.example` pour la liste complète.
@@ -425,16 +524,18 @@ Nexum-Flow/
 ├── workflows/
 │   ├── 01-leads/               # 2 workflows
 │   ├── 02-commercial/          # 3 workflows
-│   ├── 03-client/              # 3 workflows
+│   ├── 03-client/              # 4 workflows
 │   ├── 04-administratif/       # 4 workflows
 │   ├── 05-ia/                  # 3 workflows
 │   ├── 06-marketing/           # 3 workflows
 │   ├── 07-veille/              # 2 workflows
 │   ├── 08-rh/                  # 2 workflows
 │   ├── 09-education/           # 6 workflows
-│   ├── 10-vie-quotidienne/     # 12 workflows
+│   ├── 10-vie-quotidienne/     # 18 workflows
 │   ├── 11-pilotage/            # 4 workflows
-│   └── 12-ops/                 # 4 workflows (48 total)
+│   ├── 12-ops/                 # 4 workflows
+│   ├── 13-freelance/           # 5 workflows
+│   └── 14-verticaux/           # 5 workflows (65 total)
 └── scripts/
     ├── setup.sh                # Démarrage complet
     └── import-workflows.sh     # Import dans n8n

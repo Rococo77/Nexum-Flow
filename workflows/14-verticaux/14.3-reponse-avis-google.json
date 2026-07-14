@@ -1,0 +1,286 @@
+{
+  "name": "14.3 – Réponse IA aux avis Google",
+  "nodes": [
+    {
+      "id": "d1d2d3d4-1403-1403-1403-000000000001",
+      "name": "Tous les jours 10h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1403-1403-1403-000000000002",
+      "name": "Récupérer les avis Google",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://maps.googleapis.com/maps/api/place/details/json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "place_id",
+              "value": "={{ $env.GOOGLE_PLACE_ID }}"
+            },
+            {
+              "name": "fields",
+              "value": "reviews"
+            },
+            {
+              "name": "key",
+              "value": "={{ $env.GOOGLE_MAPS_API_KEY }}"
+            },
+            {
+              "name": "language",
+              "value": "fr"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1403-1403-1403-000000000003",
+      "name": "Éclater les avis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const reviews = ((($input.first().json || {}).result) || {}).reviews || [];\nreturn reviews.filter(r => (r.text || '').trim()).map(r => ({ json: {\n  external_id: `${r.author_name}-${r.time}`.substring(0, 255),\n  auteur: (r.author_name || 'Anonyme').substring(0, 255),\n  note: r.rating || 0,\n  texte: (r.text || '').substring(0, 2000)\n} }));"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1403-1403-1403-000000000004",
+      "name": "Nouveaux avis uniquement",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO avis_google_reponses (external_id, auteur, note, texte)\nVALUES ($1, $2, $3, $4)\nON CONFLICT (external_id) DO NOTHING\nRETURNING external_id, auteur, note, texte",
+        "options": {
+          "queryReplacement": "={{ [$json.external_id, $json.auteur, $json.note, $json.texte] }}"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1403-1403-1403-000000000005",
+      "name": "Rédiger la réponse (IA)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1250,
+        300
+      ],
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-large-latest"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu rédiges les réponses publiques aux avis Google d'un commerce local. Règles : toujours remercier, personnaliser (reprendre un élément de l'avis), rester bref (3-4 phrases). Pour un avis négatif (≤ 3 étoiles) : présenter des excuses sincères sans se justifier, proposer un contact direct pour résoudre le problème. Jamais de promotion agressive. Retourne UNIQUEMENT le texte de la réponse."
+            },
+            {
+              "role": "user",
+              "content": "Avis de {{ $json.auteur }} ({{ $json.note }}/5) :\n{{ $json.texte }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.5,
+          "maxTokens": 300
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1403-1403-1403-000000000006",
+      "name": "Associer avis et réponse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const avis = $('Nouveaux avis uniquement').item.json;\nreturn { ...avis, reponse: $input.item.json.message.content.trim() };"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1403-1403-1403-000000000007",
+      "name": "Sauvegarder la réponse",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1750,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE avis_google_reponses SET reponse_ia = $1 WHERE external_id = $2",
+        "options": {
+          "queryReplacement": "={{ [$json.reponse, $json.external_id] }}"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1403-1403-1403-000000000008",
+      "name": "Proposer au gérant",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        300
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "guildId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_GUILD_ID }}"
+        },
+        "sendTo": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_MARKETING_CHANNEL_ID }}"
+        },
+        "content": "⭐ **Nouvel avis Google** de {{ $('Associer avis et réponse').item.json.auteur }} ({{ $('Associer avis et réponse').item.json.note }}/5)\n> {{ $('Associer avis et réponse').item.json.texte }}\n\n**Réponse suggérée (à coller dans Google Business) :**\n{{ $('Associer avis et réponse').item.json.reponse }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Tous les jours 10h": {
+      "main": [
+        [
+          {
+            "node": "Récupérer les avis Google",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Récupérer les avis Google": {
+      "main": [
+        [
+          {
+            "node": "Éclater les avis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Éclater les avis": {
+      "main": [
+        [
+          {
+            "node": "Nouveaux avis uniquement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nouveaux avis uniquement": {
+      "main": [
+        [
+          {
+            "node": "Rédiger la réponse (IA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rédiger la réponse (IA)": {
+      "main": [
+        [
+          {
+            "node": "Associer avis et réponse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Associer avis et réponse": {
+      "main": [
+        [
+          {
+            "node": "Sauvegarder la réponse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sauvegarder la réponse": {
+      "main": [
+        [
+          {
+            "node": "Proposer au gérant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "d1d2d3d4-1403-1403-1403-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-vertical",
+      "name": "vertical"
+    },
+    {
+      "id": "tag-marketing",
+      "name": "marketing"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    }
+  ]
+}

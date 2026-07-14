@@ -1,0 +1,287 @@
+{
+  "name": "14.1 – Artisans : demande de devis par photo",
+  "nodes": [
+    {
+      "id": "d1d2d3d4-1401-1401-1401-000000000001",
+      "name": "Webhook Demande chantier",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demande-chantier",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "d1d2d3d4-1401-1401-1401-000000000002",
+      "name": "Valider la demande",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const b = $input.item.json.body || $input.item.json;\nconst description = String(b.description || '').trim().substring(0, 3000);\nconst email = String(b.email || '').trim().toLowerCase();\nif (!description) throw new Error('description requise');\nif (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) throw new Error('email invalide');\nconst photos = (Array.isArray(b.photos) ? b.photos : [])\n  .filter(u => /^https?:\\/\\//.test(String(u))).slice(0, 5).map(u => String(u).substring(0, 500));\nreturn {\n  nom: String(b.nom || '').substring(0, 255),\n  prenom: String(b.prenom || '').substring(0, 255),\n  email,\n  telephone: String(b.telephone || '').substring(0, 50),\n  ville: String(b.ville || '').substring(0, 255),\n  description, photos\n};"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1401-1401-1401-000000000003",
+      "name": "Qualifier le chantier (IA)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-large-latest"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es un artisan expérimenté (tous corps de métier) qui qualifie des demandes de devis. À partir de la description du chantier, retourne UNIQUEMENT un JSON valide :\n{\n  \"type_travaux\": \"plomberie|electricite|maconnerie|peinture|menuiserie|toiture|renovation_globale|autre\",\n  \"urgence\": \"urgente|normale|planifiable\",\n  \"fourchette_basse\": number (€, estimation grossière),\n  \"fourchette_haute\": number,\n  \"duree_estimee_jours\": number,\n  \"questions_a_poser\": [\"2-3 questions pour préciser le devis\"],\n  \"priorite_commerciale\": \"haute|normale|faible\"\n}\nEstimations prudentes ; si la description est trop vague, élargis la fourchette."
+            },
+            {
+              "role": "user",
+              "content": "Description du chantier :\n{{ $json.description }}\nVille : {{ $json.ville }}\nPhotos fournies : {{ $json.photos.length }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 700
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1401-1401-1401-000000000004",
+      "name": "Parser la qualification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const content = $input.item.json.message.content;\nlet q;\ntry { q = JSON.parse(content.match(/\\{[\\s\\S]*\\}/)[0]); }\ncatch(e) { q = { type_travaux: 'autre', urgence: 'normale', fourchette_basse: null,\n  fourchette_haute: null, duree_estimee_jours: null, questions_a_poser: [],\n  priorite_commerciale: 'normale' }; }\nconst d = $('Valider la demande').item.json;\nreturn {\n  ...d,\n  ...q,\n  message: `[${q.type_travaux} – ${q.urgence}] ${d.description}` +\n    (d.photos.length ? `\\nPhotos : ${d.photos.join(' ')}` : '')\n};"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1401-1401-1401-000000000005",
+      "name": "Créer le lead",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1250,
+        300
+      ],
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "name",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "nom": "={{ $json.nom }}",
+            "prenom": "={{ $json.prenom }}",
+            "email": "={{ $json.email }}",
+            "telephone": "={{ $json.telephone }}",
+            "message": "={{ $json.message }}",
+            "source": "chantier",
+            "priorite": "={{ $json.priorite_commerciale === 'haute' ? 'haute' : 'normale' }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d1d2d3d4-1401-1401-1401-000000000006",
+      "name": "Notifier le commercial",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "guildId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_GUILD_ID }}"
+        },
+        "sendTo": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_COMMERCIAL_CHANNEL_ID }}"
+        },
+        "content": "🏗️ **Nouvelle demande de chantier** ({{ $('Parser la qualification').item.json.type_travaux }}, urgence {{ $('Parser la qualification').item.json.urgence }})\n**Contact :** {{ $('Parser la qualification').item.json.prenom }} {{ $('Parser la qualification').item.json.nom }} – {{ $('Parser la qualification').item.json.telephone }}\n**Estimation IA :** {{ $('Parser la qualification').item.json.fourchette_basse ?? '?' }} – {{ $('Parser la qualification').item.json.fourchette_haute ?? '?' }} € (~{{ $('Parser la qualification').item.json.duree_estimee_jours ?? '?' }} j)\n**À demander :** {{ ($('Parser la qualification').item.json.questions_a_poser || []).join(' | ') }}\n**Photos :** {{ ($('Parser la qualification').item.json.photos || []).join(' ') || 'aucune' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "d1d2d3d4-1401-1401-1401-000000000007",
+      "name": "Accusé de réception client",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1750,
+        300
+      ],
+      "parameters": {
+        "operation": "send",
+        "sendTo": "={{ $('Parser la qualification').item.json.email }}",
+        "subject": "Votre demande de devis a bien été reçue",
+        "emailType": "html",
+        "message": "<html><body><p>Bonjour {{ $(\"Parser la qualification\").item.json.prenom }},</p><p>Nous avons bien reçu votre demande de devis et vos photos. Un membre de notre équipe vous recontacte sous 24h ouvrées pour préciser votre projet.</p><p>À très vite,<br>L'équipe</p></body></html>"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1401-1401-1401-000000000008",
+      "name": "Réponse webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Demande enregistrée, réponse sous 24h' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Demande chantier": {
+      "main": [
+        [
+          {
+            "node": "Valider la demande",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider la demande": {
+      "main": [
+        [
+          {
+            "node": "Qualifier le chantier (IA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualifier le chantier (IA)": {
+      "main": [
+        [
+          {
+            "node": "Parser la qualification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser la qualification": {
+      "main": [
+        [
+          {
+            "node": "Créer le lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Créer le lead": {
+      "main": [
+        [
+          {
+            "node": "Notifier le commercial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notifier le commercial": {
+      "main": [
+        [
+          {
+            "node": "Accusé de réception client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accusé de réception client": {
+      "main": [
+        [
+          {
+            "node": "Réponse webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "d1d2d3d4-1401-1401-1401-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-vertical",
+      "name": "vertical"
+    },
+    {
+      "id": "tag-artisans",
+      "name": "artisans"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    }
+  ]
+}

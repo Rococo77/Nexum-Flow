@@ -1,0 +1,275 @@
+{
+  "name": "14.4 – Immobilier : relance après visite",
+  "nodes": [
+    {
+      "id": "d1d2d3d4-1404-1404-1404-000000000001",
+      "name": "Webhook Visite",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        150
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "visite",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "d1d2d3d4-1404-1404-1404-000000000002",
+      "name": "Valider la visite",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        150
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const b = $input.item.json.body || $input.item.json;\nconst bien = String(b.bien || '').trim().substring(0, 500);\nconst email = String(b.email || '').trim().toLowerCase();\nconst dateVisite = String(b.date_visite || '').trim();\nif (!bien) throw new Error('bien requis');\nif (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) throw new Error('email invalide');\nif (!/^\\d{4}-\\d{2}-\\d{2}$/.test(dateVisite)) throw new Error('date_visite au format YYYY-MM-DD requise');\nreturn {\n  bien, email,\n  nom: String(b.nom || '').substring(0, 255),\n  telephone: String(b.telephone || '').substring(0, 50),\n  date_visite: dateVisite,\n  agent_email: String(b.agent_email || $env.SMTP_USER || '').substring(0, 255)\n};"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1404-1404-1404-000000000003",
+      "name": "Enregistrer la visite",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        750,
+        150
+      ],
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "name",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "visites_immo"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "bien": "={{ $json.bien }}",
+            "nom": "={{ $json.nom }}",
+            "email": "={{ $json.email }}",
+            "telephone": "={{ $json.telephone }}",
+            "date_visite": "={{ $json.date_visite }}",
+            "agent_email": "={{ $json.agent_email }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d1d2d3d4-1404-1404-1404-000000000004",
+      "name": "Réponse webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        150
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, bien: $('Valider la visite').item.json.bien }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1404-1404-1404-000000000005",
+      "name": "Tous les jours 9h30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        450
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 9 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1404-1404-1404-000000000006",
+      "name": "Visites à relancer (J+3)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        500,
+        450
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, bien, nom, email, telephone, date_visite, agent_email\nFROM visites_immo\nWHERE statut = 'planifiee' AND relance_envoyee = FALSE\n  AND date_visite <= CURRENT_DATE - 3\nORDER BY date_visite",
+        "options": {}
+      }
+    },
+    {
+      "id": "d1d2d3d4-1404-1404-1404-000000000007",
+      "name": "Relance acheteur",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        750,
+        450
+      ],
+      "parameters": {
+        "operation": "send",
+        "sendTo": "={{ $json.email }}",
+        "subject": "Votre visite du {{ $json.date_visite }} – qu’en avez-vous pensé ?",
+        "emailType": "html",
+        "message": "<html><body><p>Bonjour {{ $json.nom }},</p><p>Vous avez visité <strong>{{ $json.bien }}</strong> le {{ $json.date_visite }}. Qu'en avez-vous pensé ?</p><p>Si le bien vous intéresse, ou si vous souhaitez visiter d'autres biens similaires, répondez simplement à cet email — nous vous rappelons dans la journée.</p><p>Bien cordialement,<br>Votre agence</p></body></html>"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1404-1404-1404-000000000008",
+      "name": "Copie à l’agent",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        450
+      ],
+      "parameters": {
+        "operation": "send",
+        "sendTo": "={{ $json.agent_email }}",
+        "subject": "🔔 Relance envoyée : {{ $json.nom }} ({{ $json.bien }})",
+        "emailType": "html",
+        "message": "<html><body><p>La relance J+3 a été envoyée à {{ $json.nom }} ({{ $json.email }}, {{ $json.telephone }}) pour le bien : {{ $json.bien }}.</p><p>Pensez à l'appeler si pas de réponse d'ici 48h.</p></body></html>"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1404-1404-1404-000000000009",
+      "name": "Marquer comme relancé",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1250,
+        450
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE visites_immo SET relance_envoyee = TRUE WHERE id = $1",
+        "options": {
+          "queryReplacement": "={{ [$('Visites à relancer (J+3)').item.json.id] }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Visite": {
+      "main": [
+        [
+          {
+            "node": "Valider la visite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider la visite": {
+      "main": [
+        [
+          {
+            "node": "Enregistrer la visite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enregistrer la visite": {
+      "main": [
+        [
+          {
+            "node": "Réponse webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tous les jours 9h30": {
+      "main": [
+        [
+          {
+            "node": "Visites à relancer (J+3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Visites à relancer (J+3)": {
+      "main": [
+        [
+          {
+            "node": "Relance acheteur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Relance acheteur": {
+      "main": [
+        [
+          {
+            "node": "Copie à l’agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Copie à l’agent": {
+      "main": [
+        [
+          {
+            "node": "Marquer comme relancé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "d1d2d3d4-1404-1404-1404-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-vertical",
+      "name": "vertical"
+    },
+    {
+      "id": "tag-immobilier",
+      "name": "immobilier"
+    }
+  ]
+}
