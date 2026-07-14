@@ -431,3 +431,37 @@ CREATE INDEX IF NOT EXISTS idx_veille_pertinence ON veille_marches(pertinence);
 
 CREATE TRIGGER trigger_projets_updated_at BEFORE UPDATE ON projets FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trigger_taches_updated_at BEFORE UPDATE ON taches FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- Module 12 – Opérations : journal des erreurs de workflows (12.1)
+CREATE TABLE IF NOT EXISTS workflow_errors (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    workflow_id VARCHAR(100),
+    workflow_name VARCHAR(255),
+    execution_id VARCHAR(100),
+    execution_url VARCHAR(1000),
+    noeud VARCHAR(255),
+    message TEXT,
+    mode VARCHAR(50),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Factures fournisseurs entrantes (4.4)
+CREATE TABLE IF NOT EXISTS factures_fournisseurs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    fournisseur VARCHAR(255),
+    numero_facture VARCHAR(100),
+    date_facture DATE,
+    date_echeance DATE,
+    montant_ht DECIMAL(10,2),
+    montant_tva DECIMAL(10,2),
+    montant_ttc DECIMAL(10,2),
+    devise VARCHAR(10) DEFAULT 'EUR',
+    categorie VARCHAR(50),
+    statut VARCHAR(50) DEFAULT 'a_payer',
+    image_url VARCHAR(1000),
+    texte_ocr TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_errors_workflow ON workflow_errors(workflow_name);
+CREATE INDEX IF NOT EXISTS idx_factures_fournisseurs_echeance ON factures_fournisseurs(date_echeance);

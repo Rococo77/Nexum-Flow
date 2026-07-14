@@ -32,7 +32,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT f.*, c.email, c.prenom, c.nom, c.entreprise, c.telephone\nFROM factures f\nJOIN clients c ON f.client_id = c.id\nWHERE f.statut IN ('en_attente', 'en_retard')\n  AND f.date_echeance < NOW()\n  AND f.nb_relances < 3\nORDER BY f.date_echeance ASC",
+        "query": "SELECT f.*, c.email, c.prenom, c.nom, c.entreprise, c.telephone\nFROM factures f\nJOIN clients c ON f.client_id = c.id\nWHERE f.statut IN ('en_attente', 'en_retard')\n  AND f.date_echeance < NOW()\n  AND f.nb_relances < 3\n  AND (f.derniere_relance IS NULL OR f.derniere_relance <= NOW() - INTERVAL '7 days')\nORDER BY f.date_echeance ASC",
         "options": {}
       }
     },

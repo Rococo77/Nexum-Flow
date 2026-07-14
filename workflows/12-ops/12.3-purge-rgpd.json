@@ -1,0 +1,221 @@
+{
+  "name": "12.3 – Purge RGPD mensuelle",
+  "nodes": [
+    {
+      "id": "c1c2c3c4-1203-1203-1203-000000000001",
+      "name": "Le 1er du mois à 3h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 3 1 * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c1c2c3c4-1203-1203-1203-000000000005",
+      "name": "Purger leads inactifs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH del AS (\n  DELETE FROM leads\n  WHERE statut IN ('perdu', 'spam')\n    AND updated_at < NOW() - make_interval(months => $1)\n    AND id NOT IN (SELECT lead_id FROM clients WHERE lead_id IS NOT NULL)\n  RETURNING id\n) SELECT COUNT(*)::int AS supprimes FROM del",
+        "options": {
+          "queryReplacement": "={{ [Number($env.RETENTION_MOIS_LEADS || 24)] }}"
+        }
+      }
+    },
+    {
+      "id": "c1c2c3c4-1203-1203-1203-000000000006",
+      "name": "Purger emails traités",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH del AS (\n  DELETE FROM emails_traites\n  WHERE traite_at < NOW() - make_interval(months => $1)\n  RETURNING id\n) SELECT COUNT(*)::int AS supprimes FROM del",
+        "options": {
+          "queryReplacement": "={{ [Number($env.RETENTION_MOIS_EMAILS || 12)] }}"
+        }
+      }
+    },
+    {
+      "id": "c1c2c3c4-1203-1203-1203-000000000007",
+      "name": "Purger questions scolarité",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH del AS (\n  DELETE FROM questions_scolarite\n  WHERE traite_at < NOW() - make_interval(months => $1)\n  RETURNING id\n) SELECT COUNT(*)::int AS supprimes FROM del",
+        "options": {
+          "queryReplacement": "={{ [Number($env.RETENTION_MOIS_SCOLARITE || 12)] }}"
+        }
+      }
+    },
+    {
+      "id": "c1c2c3c4-1203-1203-1203-000000000008",
+      "name": "Purger candidatures refusées",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1250,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH del AS (\n  DELETE FROM candidatures\n  WHERE statut = 'refuse'\n    AND created_at < NOW() - make_interval(months => $1)\n  RETURNING id\n) SELECT COUNT(*)::int AS supprimes FROM del",
+        "options": {
+          "queryReplacement": "={{ [Number($env.RETENTION_MOIS_CANDIDATURES || 24)] }}"
+        }
+      }
+    },
+    {
+      "id": "c1c2c3c4-1203-1203-1203-000000000009",
+      "name": "Synthèse de purge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const total = {\n  'Leads inactifs': $('Purger leads inactifs').first().json.supprimes || 0,\n  'Emails traités': $('Purger emails traités').first().json.supprimes || 0,\n  'Questions scolarité': $('Purger questions scolarité').first().json.supprimes || 0,\n  'Candidatures refusées': $('Purger candidatures refusées').first().json.supprimes || 0,\n};\nconst lignes = Object.entries(total).map(([k, v]) => `• ${k} : ${v}`);\nconst somme = Object.values(total).reduce((a, b) => a + b, 0);\nreturn [{ json: { lignes, somme, purge_le: new Date().toISOString().split('T')[0] } }];"
+      }
+    },
+    {
+      "id": "c1c2c3c4-1203-1203-1203-000000000010",
+      "name": "Rapport de purge",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        1750,
+        300
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "guildId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_GUILD_ID }}"
+        },
+        "sendTo": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_ADMIN_CHANNEL_ID }}"
+        },
+        "content": "🧹 **PURGE RGPD MENSUELLE** – {{ $json.purge_le }}\n{{ $json.lignes.join('\\n') }}\n**Total : {{ $json.somme }} enregistrement(s) supprimé(s)**",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Le 1er du mois à 3h": {
+      "main": [
+        [
+          {
+            "node": "Purger leads inactifs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purger leads inactifs": {
+      "main": [
+        [
+          {
+            "node": "Purger emails traités",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purger emails traités": {
+      "main": [
+        [
+          {
+            "node": "Purger questions scolarité",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purger questions scolarité": {
+      "main": [
+        [
+          {
+            "node": "Purger candidatures refusées",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purger candidatures refusées": {
+      "main": [
+        [
+          {
+            "node": "Synthèse de purge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthèse de purge": {
+      "main": [
+        [
+          {
+            "node": "Rapport de purge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "c1c2c3c4-1203-1203-1203-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-ops",
+      "name": "ops"
+    },
+    {
+      "id": "tag-rgpd",
+      "name": "rgpd"
+    }
+  ]
+}

@@ -23,6 +23,42 @@
             "INBOX"
           ],
           "q": "subject:(candidature OR CV OR recrutement OR poste)"
+        },
+        "simple": false,
+        "options": {
+          "downloadAttachments": true
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0020-0020-0020-000000000010",
+      "name": "CV joint ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-piece-jointe",
+              "leftValue": "={{ Object.keys($binary ?? {}).length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
         }
       }
     },
@@ -30,20 +66,22 @@
       "id": "a1b2c3d4-0020-0020-0020-000000000002",
       "name": "Extraire texte du CV",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
+      "typeVersion": 4.2,
       "position": [
-        500,
-        300
+        650,
+        200
       ],
       "parameters": {
         "method": "POST",
         "url": "=https://{{ $env.API_HOST }}/api/v1/documents/extract-text",
         "sendBody": true,
+        "contentType": "multipart-form-data",
         "bodyParameters": {
           "parameters": [
             {
+              "parameterType": "formBinaryData",
               "name": "file",
-              "value": "={{ $json.attachments[0] }}"
+              "inputDataFieldName": "attachment_0"
             }
           ]
         }
@@ -74,7 +112,7 @@
             },
             {
               "role": "user",
-              "content": "Email de candidature:\nDe: {{ $('Gmail Trigger – CV reçus').item.json.From }}\nSujet: {{ $('Gmail Trigger – CV reçus').item.json.Subject }}\nMessage: {{ $('Gmail Trigger – CV reçus').item.json.snippet }}\n\nContenu CV:\n{{ $json.text || 'CV non extractible' }}"
+              "content": "Email de candidature:\nDe: {{ $('Gmail Trigger – CV reçus').item.json.from?.text }}\nSujet: {{ $('Gmail Trigger – CV reçus').item.json.subject }}\nMessage: {{ ($('Gmail Trigger – CV reçus').item.json.text || '').substring(0, 1000) }}\n\nContenu CV:\n{{ $json.text || 'CV non extractible – évaluer sur le message uniquement' }}"
             }
           ]
         },
@@ -95,7 +133,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const content = $input.item.json.message.content;\nlet analyse;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  analyse = JSON.parse(match[0]);\n} catch(e) {\n  analyse = { prenom_nom: 'Inconnu', score_adequation: 0, recommandation: 'liste_attente', raison_decision: 'Analyse impossible' };\n}\nreturn {\n  ...analyse,\n  email_original: $('Gmail Trigger – CV reçus').item.json.From,\n  date_reception: new Date().toISOString()\n};"
+        "jsCode": "const content = $input.item.json.message.content;\nlet analyse;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  analyse = JSON.parse(match[0]);\n} catch(e) {\n  analyse = { prenom_nom: 'Inconnu', score_adequation: 0, recommandation: 'liste_attente', raison_decision: 'Analyse impossible' };\n}\nreturn {\n  ...analyse,\n  email_original: $('Gmail Trigger – CV reçus').item.json.from?.value?.[0]?.address || $('Gmail Trigger – CV reçus').item.json.from?.text,\n  date_reception: new Date().toISOString()\n};"
       }
     },
     {
@@ -178,7 +216,25 @@
       "main": [
         [
           {
+            "node": "CV joint ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CV joint ?": {
+      "main": [
+        [
+          {
             "node": "Extraire texte du CV",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyser CV avec IA",
             "type": "main",
             "index": 0
           }

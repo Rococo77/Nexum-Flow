@@ -17,8 +17,9 @@ Bibliothèque de workflows n8n réutilisables pour agences de développement et 
 | 09 – Écoles post-bac | Candidatures, Admissions, Décrochage, Assistant scolarité, Stages | P1 / P2 |
 | 10 – Vie quotidienne | Digest matinal, Budget, Courses/repas, Alertes prix, Routine santé, Veille perso, Admin, Journal, Sport, Sorties, Maison, OCR documents | perso |
 | 11 – Pilotage | Suivi projet, Détection churn, Comptes-rendus, Veille appels d'offres | P1 / P2 |
+| 12 – Ops | Gestion d'erreurs, Healthcheck, Purge RGPD, Sauvegarde workflows | P1 |
 
-**Total : 43 workflows prêts à importer**
+**Total : 48 workflows prêts à importer**
 
 > Le module **09 – Écoles post-bac** est un pack vertical pour l'enseignement supérieur (universités, écoles d'ingénieurs/commerce, BTS) : il couvre le cycle complet candidature → admission → vie scolaire → stage.
 >
@@ -96,6 +97,7 @@ Dans n8n → Settings → Credentials, créez :
 | Mistral AI (credential type "OpenAI", Base URL `https://api.mistral.ai/v1`) | 1.2, 2.2, 2.3, 4.3, 5.1, 5.3, 6.2, 6.3, 7.1, 7.2, 8.1, 8.2, 9.1, 9.3–9.6 |
 | OpenAI API (Whisper) | 5.2 |
 | Discord Bot API (token du bot + Guild ID) | Tous (notifications) |
+| HTTP Basic Auth (WordPress, mot de passe d'application) | 6.2 |
 
 ---
 
@@ -174,6 +176,11 @@ Génère contrats, courriers, comptes-rendus via GPT-4o avec export PDF.
 **Déclencheur :** Webhook POST `/generer-document`  
 **Types :** `contrat`, `compte-rendu`, `courrier`, `rapport`
 
+#### 4.4 – Factures fournisseurs (OCR + échéancier) `P2`
+Envoyez l'URL d'une facture fournisseur : OCR (OCR.space), extraction IA (fournisseur, montants, échéance, catégorie), enregistrement en base et notification compta.
+
+**Déclencheur :** Webhook POST `/facture-fournisseur` (`{ "image_url": "https://..." }`)
+
 ---
 
 ### 05 – Intelligence Artificielle
@@ -226,7 +233,7 @@ Agrège GitHub Trending, Hacker News et Reddit, synthèse IA, envoi Discord + em
 ### 08 – Ressources Humaines
 
 #### 8.1 – Tri de CV `–`
-Score les CV reçus par email avec GPT-4o et envoie la réponse appropriée (positive/négative).
+Extrait le texte du CV joint (PDF via l'API d'extraction), le score avec l'IA et envoie la réponse appropriée (positive/négative). Sans pièce jointe, l'évaluation se fait sur le corps de l'email.
 
 #### 8.2 – Onboarding collaborateurs `–`
 Crée comptes Google Workspace + Discord + n8n, génère le kit d'accueil IA, annonce sur Discord.
@@ -361,6 +368,32 @@ Interroge quotidiennement le BOAMP (open data, sans clé), déduplique, évalue 
 
 ---
 
+### 12 – Ops
+
+Supervision et hygiène de l'instance n8n elle-même.
+
+#### 12.1 – Gestion centralisée des erreurs `P1`
+Reçoit toutes les erreurs de workflows (Error Trigger), les historise en base (`workflow_errors`) et alerte les admins sur Discord avec le lien de l'exécution.
+
+> ⚠️ **Après import** : ouvrez chaque workflow → Settings → *Error workflow* → sélectionnez « 12.1 – Gestion centralisée des erreurs ». Sans cela, les erreurs restent silencieuses.
+
+#### 12.2 – Healthcheck de la stack `P1`
+Vérifie FastAPI, MinIO et PostgreSQL toutes les 15 minutes (URLs internes Docker) et alerte Discord uniquement en cas de panne.
+
+**Déclencheur :** Schedule `*/15 * * * *`
+
+#### 12.3 – Purge RGPD mensuelle `P1`
+Supprime chaque 1er du mois les données au-delà de la durée de rétention : leads perdus/spam, emails traités, questions scolarité, candidatures refusées. Durées configurables via `RETENTION_MOIS_*`, rapport Discord.
+
+**Déclencheur :** Schedule `0 3 1 * *`
+
+#### 12.4 – Sauvegarde hebdomadaire des workflows `P2`
+Exporte tous les workflows via l'API n8n et archive le JSON sur MinIO (`Backups/n8n/`), avec confirmation Discord.
+
+**Déclencheur :** Schedule dimanche 4h · nécessite `N8N_API_KEY`
+
+---
+
 ## Variables d'environnement requises
 
 Voir `docker/.env.example` pour la liste complète.
@@ -393,14 +426,15 @@ Nexum-Flow/
 │   ├── 01-leads/               # 2 workflows
 │   ├── 02-commercial/          # 3 workflows
 │   ├── 03-client/              # 3 workflows
-│   ├── 04-administratif/       # 3 workflows
+│   ├── 04-administratif/       # 4 workflows
 │   ├── 05-ia/                  # 3 workflows
 │   ├── 06-marketing/           # 3 workflows
 │   ├── 07-veille/              # 2 workflows
 │   ├── 08-rh/                  # 2 workflows
 │   ├── 09-education/           # 6 workflows
 │   ├── 10-vie-quotidienne/     # 12 workflows
-│   └── 11-pilotage/            # 4 workflows (43 total)
+│   ├── 11-pilotage/            # 4 workflows
+│   └── 12-ops/                 # 4 workflows (48 total)
 └── scripts/
     ├── setup.sh                # Démarrage complet
     └── import-workflows.sh     # Import dans n8n
