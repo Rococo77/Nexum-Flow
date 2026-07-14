@@ -420,7 +420,9 @@ Vérifie FastAPI, MinIO et PostgreSQL toutes les 15 minutes (URLs internes Docke
 **Déclencheur :** Schedule `*/15 * * * *`
 
 #### 12.3 – Purge RGPD mensuelle `P1`
-Supprime chaque 1er du mois les données au-delà de la durée de rétention : leads perdus/spam, emails traités, questions scolarité, candidatures refusées. Durées configurables via `RETENTION_MOIS_*`, rapport Discord.
+Supprime chaque 1er du mois les données au-delà de la durée de rétention : leads perdus/spam, emails traités, questions scolarité, candidatures refusées, réservations restaurant, visites immobilières, dons anciens, membres inactifs et journaux techniques (erreurs, mentions, briefings). Durées configurables via `RETENTION_MOIS_*`, rapport Discord.
+
+> ⚖️ Les dons/reçus fiscaux sont conservés au minimum 6 ans (obligation légale) : la purge applique `GREATEST(RETENTION_MOIS_DONS, 72)`. Les factures clients et fournisseurs ne sont jamais purgées (conservation comptable 10 ans).
 
 **Déclencheur :** Schedule `0 3 1 * *`
 

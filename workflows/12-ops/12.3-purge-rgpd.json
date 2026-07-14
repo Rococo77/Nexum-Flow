@@ -2,7 +2,7 @@
   "name": "12.3 – Purge RGPD mensuelle",
   "nodes": [
     {
-      "id": "c1c2c3c4-1203-1203-1203-000000000001",
+      "id": "d1d2d3d4-1203-1203-1203-000000000001",
       "name": "Le 1er du mois à 3h",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.1,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "c1c2c3c4-1203-1203-1203-000000000005",
+      "id": "d1d2d3d4-1203-1203-1203-000000000005",
       "name": "Purger leads inactifs",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
@@ -39,12 +39,12 @@
       }
     },
     {
-      "id": "c1c2c3c4-1203-1203-1203-000000000006",
+      "id": "d1d2d3d4-1203-1203-1203-000000000006",
       "name": "Purger emails traités",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        750,
+        720,
         300
       ],
       "parameters": {
@@ -56,12 +56,12 @@
       }
     },
     {
-      "id": "c1c2c3c4-1203-1203-1203-000000000007",
+      "id": "d1d2d3d4-1203-1203-1203-000000000007",
       "name": "Purger questions scolarité",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1000,
+        940,
         300
       ],
       "parameters": {
@@ -73,12 +73,12 @@
       }
     },
     {
-      "id": "c1c2c3c4-1203-1203-1203-000000000008",
+      "id": "d1d2d3d4-1203-1203-1203-000000000008",
       "name": "Purger candidatures refusées",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1250,
+        1160,
         300
       ],
       "parameters": {
@@ -90,26 +90,111 @@
       }
     },
     {
-      "id": "c1c2c3c4-1203-1203-1203-000000000009",
+      "id": "d1d2d3d4-1203-1203-1203-000000000011",
+      "name": "Purger réservations passées",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1380,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH del AS (\n  DELETE FROM reservations_resto\n  WHERE date < CURRENT_DATE - make_interval(months => $1)\n  RETURNING id\n) SELECT COUNT(*)::int AS supprimes FROM del",
+        "options": {
+          "queryReplacement": "={{ [Number($env.RETENTION_MOIS_RESERVATIONS || 12)] }}"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1203-1203-1203-000000000012",
+      "name": "Purger visites immobilières",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1600,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH del AS (\n  DELETE FROM visites_immo\n  WHERE date_visite < CURRENT_DATE - make_interval(months => $1)\n  RETURNING id\n) SELECT COUNT(*)::int AS supprimes FROM del",
+        "options": {
+          "queryReplacement": "={{ [Number($env.RETENTION_MOIS_VISITES || 24)] }}"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1203-1203-1203-000000000013",
+      "name": "Purger dons anciens",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1820,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH del AS (\n  DELETE FROM dons_recus\n  WHERE created_at < NOW() - make_interval(months => GREATEST($1, 72))\n  RETURNING id\n) SELECT COUNT(*)::int AS supprimes FROM del",
+        "options": {
+          "queryReplacement": "={{ [Number($env.RETENTION_MOIS_DONS || 72)] }}"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1203-1203-1203-000000000014",
+      "name": "Purger membres inactifs",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2040,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH del AS (\n  DELETE FROM membres_asso\n  WHERE date_fin_adhesion IS NOT NULL\n    AND date_fin_adhesion < CURRENT_DATE - make_interval(months => $1)\n  RETURNING id\n) SELECT COUNT(*)::int AS supprimes FROM del",
+        "options": {
+          "queryReplacement": "={{ [Number($env.RETENTION_MOIS_MEMBRES || 36)] }}"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1203-1203-1203-000000000015",
+      "name": "Purger journaux techniques",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2260,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH e AS (\n  DELETE FROM workflow_errors\n  WHERE created_at < NOW() - make_interval(months => $1) RETURNING id\n), m AS (\n  DELETE FROM mentions_marque\n  WHERE created_at < NOW() - make_interval(months => $1) RETURNING id\n), b AS (\n  DELETE FROM briefings_envoyes\n  WHERE created_at < NOW() - make_interval(months => $1) RETURNING id\n)\nSELECT ((SELECT COUNT(*) FROM e) + (SELECT COUNT(*) FROM m)\n  + (SELECT COUNT(*) FROM b))::int AS supprimes",
+        "options": {
+          "queryReplacement": "={{ [Number($env.RETENTION_MOIS_TECHNIQUE || 6)] }}"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1203-1203-1203-000000000009",
       "name": "Synthèse de purge",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1500,
+        2480,
         300
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const total = {\n  'Leads inactifs': $('Purger leads inactifs').first().json.supprimes || 0,\n  'Emails traités': $('Purger emails traités').first().json.supprimes || 0,\n  'Questions scolarité': $('Purger questions scolarité').first().json.supprimes || 0,\n  'Candidatures refusées': $('Purger candidatures refusées').first().json.supprimes || 0,\n};\nconst lignes = Object.entries(total).map(([k, v]) => `• ${k} : ${v}`);\nconst somme = Object.values(total).reduce((a, b) => a + b, 0);\nreturn [{ json: { lignes, somme, purge_le: new Date().toISOString().split('T')[0] } }];"
+        "jsCode": "const total = {\n  'Leads inactifs': $('Purger leads inactifs').first().json.supprimes || 0,\n  'Emails traités': $('Purger emails traités').first().json.supprimes || 0,\n  'Questions scolarité': $('Purger questions scolarité').first().json.supprimes || 0,\n  'Candidatures refusées': $('Purger candidatures refusées').first().json.supprimes || 0,\n  'Réservations restaurant': $('Purger réservations passées').first().json.supprimes || 0,\n  'Visites immobilières': $('Purger visites immobilières').first().json.supprimes || 0,\n  'Dons (min. légal 6 ans)': $('Purger dons anciens').first().json.supprimes || 0,\n  'Membres asso inactifs': $('Purger membres inactifs').first().json.supprimes || 0,\n  'Journaux techniques (erreurs, mentions, briefings)': $('Purger journaux techniques').first().json.supprimes || 0,\n};\nconst lignes = Object.entries(total).map(([k, v]) => `• ${k} : ${v}`);\nconst somme = Object.values(total).reduce((a, b) => a + b, 0);\nreturn [{ json: { lignes, somme, purge_le: new Date().toISOString().split('T')[0] } }];"
       }
     },
     {
-      "id": "c1c2c3c4-1203-1203-1203-000000000010",
+      "id": "d1d2d3d4-1203-1203-1203-000000000010",
       "name": "Rapport de purge",
       "type": "n8n-nodes-base.discord",
       "typeVersion": 2,
       "position": [
-        1750,
+        2700,
         300
       ],
       "parameters": {
@@ -180,6 +265,61 @@
       "main": [
         [
           {
+            "node": "Purger réservations passées",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purger réservations passées": {
+      "main": [
+        [
+          {
+            "node": "Purger visites immobilières",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purger visites immobilières": {
+      "main": [
+        [
+          {
+            "node": "Purger dons anciens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purger dons anciens": {
+      "main": [
+        [
+          {
+            "node": "Purger membres inactifs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purger membres inactifs": {
+      "main": [
+        [
+          {
+            "node": "Purger journaux techniques",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purger journaux techniques": {
+      "main": [
+        [
+          {
             "node": "Synthèse de purge",
             "type": "main",
             "index": 0
@@ -204,7 +344,7 @@
     "executionOrder": "v1",
     "saveManualExecutions": true
   },
-  "versionId": "c1c2c3c4-1203-1203-1203-000000000099",
+  "versionId": "d1d2d3d4-1203-1203-1203-000000000099",
   "meta": {
     "instanceId": "nexum-flow"
   },
