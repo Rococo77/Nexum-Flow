@@ -28,25 +28,28 @@
       ],
       "parameters": {
         "mode": "expression",
-        "output": "={{ $json.type_document }}"
+        "output": "={{ [\"contrat\", \"compte-rendu\", \"courrier\"].includes($json.type_document) ? [\"contrat\", \"compte-rendu\", \"courrier\"].indexOf($json.type_document) : 2 }}",
+        "numberOutputs": 3
       }
     },
     {
       "id": "a1b2c3d4-0011-0011-0011-000000000003",
       "name": "Prompt Contrat",
       "type": "n8n-nodes-base.set",
-      "typeVersion": 3,
+      "typeVersion": 3.4,
       "position": [
         750,
         100
       ],
       "parameters": {
         "mode": "manual",
-        "fields": {
-          "values": [
+        "assignments": {
+          "assignments": [
             {
+              "id": "69eb256e-93e6-4003-8f4a-d00c3344b920",
               "name": "system_prompt",
-              "value": "Tu es un juriste expert en droit français des affaires. Rédige un contrat de prestation de services professionnel et légalement solide. Inclus : objet, durée, prix, conditions de paiement, propriété intellectuelle, confidentialité, responsabilité, résiliation. Format: markdown structuré."
+              "value": "Tu es un juriste expert en droit français des affaires. Rédige un contrat de prestation de services professionnel et légalement solide. Inclus : objet, durée, prix, conditions de paiement, propriété intellectuelle, confidentialité, responsabilité, résiliation. Format: markdown structuré.",
+              "type": "string"
             }
           ]
         }
@@ -56,18 +59,20 @@
       "id": "a1b2c3d4-0011-0011-0011-000000000004",
       "name": "Prompt Compte-rendu",
       "type": "n8n-nodes-base.set",
-      "typeVersion": 3,
+      "typeVersion": 3.4,
       "position": [
         750,
         280
       ],
       "parameters": {
         "mode": "manual",
-        "fields": {
-          "values": [
+        "assignments": {
+          "assignments": [
             {
+              "id": "4ea1c985-a0b2-4e98-9aa3-24d0c38e4d06",
               "name": "system_prompt",
-              "value": "Tu es un expert en rédaction professionnelle. Génère un compte-rendu de réunion structuré avec : date/heure/participants, ordre du jour, points abordés, décisions prises, actions à mener (responsable + deadline). Format: markdown clair."
+              "value": "Tu es un expert en rédaction professionnelle. Génère un compte-rendu de réunion structuré avec : date/heure/participants, ordre du jour, points abordés, décisions prises, actions à mener (responsable + deadline). Format: markdown clair.",
+              "type": "string"
             }
           ]
         }
@@ -77,18 +82,20 @@
       "id": "a1b2c3d4-0011-0011-0011-000000000005",
       "name": "Prompt Courrier",
       "type": "n8n-nodes-base.set",
-      "typeVersion": 3,
+      "typeVersion": 3.4,
       "position": [
         750,
         460
       ],
       "parameters": {
         "mode": "manual",
-        "fields": {
-          "values": [
+        "assignments": {
+          "assignments": [
             {
+              "id": "a3c98fb2-7a7f-4db3-9d08-e861b8586c44",
               "name": "system_prompt",
-              "value": "Tu es un expert en communication professionnelle. Rédige un courrier professionnel en français, avec les formules de politesse appropriées, structuré et concis. Adapte le ton selon le contexte (formel/amical/commercial)."
+              "value": "Tu es un expert en communication professionnelle. Rédige un courrier professionnel en français, avec les formules de politesse appropriées, structuré et concis. Adapte le ton selon le contexte (formel/amical/commercial).",
+              "type": "string"
             }
           ]
         }
@@ -97,15 +104,20 @@
     {
       "id": "a1b2c3d4-0011-0011-0011-000000000006",
       "name": "Générer document avec IA",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [
         1000,
         300
       ],
       "parameters": {
+        "resource": "text",
         "operation": "message",
-        "modelId": "mistral-large-latest",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-large-latest"
+        },
         "messages": {
           "values": [
             {
@@ -135,7 +147,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.API_HOST }}/api/v1/documents/markdown-to-pdf",
+        "url": "=https://{{ $env.API_HOST }}/api/v1/documents/markdown-to-pdf",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -169,7 +181,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.API_HOST }}/api/v1/storage/upload",
+        "url": "=https://{{ $env.API_HOST }}/api/v1/storage/upload",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -192,9 +204,10 @@
       ],
       "parameters": {
         "options": {
-          "responseCode": 200,
-          "responseData": "={{ JSON.stringify({ success: true, contenu: $('Générer document avec IA').item.json.message.content }) }}"
-        }
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, contenu: $('Générer document avec IA').item.json.message.content }) }}"
       }
     }
   ],

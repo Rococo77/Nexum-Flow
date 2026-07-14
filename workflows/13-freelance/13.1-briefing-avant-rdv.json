@@ -1,0 +1,335 @@
+{
+  "name": "13.1 – Briefing automatique avant RDV",
+  "nodes": [
+    {
+      "id": "d1d2d3d4-1301-1301-1301-000000000001",
+      "name": "Toutes les 30 min (7h-19h)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 7-19 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1301-1301-1301-000000000002",
+      "name": "RDV de la prochaine heure",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_CALENDAR_ID }}"
+        },
+        "returnAll": false,
+        "limit": 10,
+        "options": {
+          "timeMin": "={{ new Date().toISOString() }}",
+          "timeMax": "={{ new Date(Date.now() + 60 * 60 * 1000).toISOString() }}"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1301-1301-1301-000000000003",
+      "name": "Extraire les participants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const e = $input.item.json;\nconst moi = ($env.SMTP_USER || '').toLowerCase();\nconst emails = (e.attendees || [])\n  .map(a => (a.email || '').toLowerCase())\n  .filter(a => a && a !== moi);\nreturn {\n  event_id: e.id,\n  titre: e.summary || 'RDV sans titre',\n  debut: (e.start || {}).dateTime || (e.start || {}).date || '',\n  emails\n};"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1301-1301-1301-000000000004",
+      "name": "Déjà briefé ?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*)::int AS deja FROM briefings_envoyes WHERE event_id = $1",
+        "options": {
+          "queryReplacement": "={{ [$json.event_id] }}"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1301-1301-1301-000000000005",
+      "name": "Premier passage ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-0005",
+              "leftValue": "={{ $json.deja }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1301-1301-1301-000000000006",
+      "name": "Contexte client",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1500,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT c.id, c.nom, c.prenom, c.entreprise, c.email,\n  (SELECT COUNT(*)::int FROM devis d WHERE d.client_id = c.id AND d.statut = 'envoye') AS devis_en_cours,\n  (SELECT COALESCE(SUM(f.montant_ttc), 0)::float FROM factures f\n     WHERE f.client_id = c.id AND f.statut IN ('en_attente', 'en_retard')) AS impayes,\n  (SELECT ch.score_risque FROM churn_scores ch WHERE ch.client_id = c.id\n     ORDER BY ch.created_at DESC LIMIT 1) AS score_churn,\n  (SELECT COUNT(*)::int FROM emails_traites e\n     WHERE e.expediteur ILIKE '%' || c.email || '%'\n       AND e.traite_at >= NOW() - INTERVAL '30 days') AS emails_recents\nFROM clients c\nWHERE LOWER(c.email) = ANY($1)",
+        "options": {
+          "queryReplacement": "={{ [$('Extraire les participants').item.json.emails] }}"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1301-1301-1301-000000000007",
+      "name": "Fiche briefing (IA)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1750,
+        200
+      ],
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-large-latest"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu prépares un rendez-vous client pour un dirigeant d'agence web. À partir des données CRM (devis en cours, impayés, risque de churn, volume d'emails récents), rédige une fiche briefing de 6-8 lignes maximum : qui est le client, où en est la relation, les points de vigilance, et 2 objectifs suggérés pour ce rendez-vous. Format texte brut avec des tirets, pas de markdown lourd."
+            },
+            {
+              "role": "user",
+              "content": "RDV : {{ $('Extraire les participants').item.json.titre }} à {{ $('Extraire les participants').item.json.debut }}\nClient : {{ $json.prenom }} {{ $json.nom }} ({{ $json.entreprise }})\nDevis en attente de réponse : {{ $json.devis_en_cours }}\nImpayés : {{ $json.impayes }} €\nRisque churn (0-100) : {{ $json.score_churn ?? 'non calculé' }}\nEmails échangés sur 30 j : {{ $json.emails_recents }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 600
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1301-1301-1301-000000000008",
+      "name": "Briefing sur Discord",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        200
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "guildId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_GUILD_ID }}"
+        },
+        "sendTo": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_DIRECTION_CHANNEL_ID }}"
+        },
+        "content": "📋 **Briefing RDV** – {{ $('Extraire les participants').item.json.titre }}\n{{ $json.message.content }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "d1d2d3d4-1301-1301-1301-000000000009",
+      "name": "Marquer comme briefé",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2250,
+        200
+      ],
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "name",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "briefings_envoyes"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "event_id": "={{ $('Extraire les participants').item.json.event_id }}",
+            "titre": "={{ $('Extraire les participants').item.json.titre }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Toutes les 30 min (7h-19h)": {
+      "main": [
+        [
+          {
+            "node": "RDV de la prochaine heure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RDV de la prochaine heure": {
+      "main": [
+        [
+          {
+            "node": "Extraire les participants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire les participants": {
+      "main": [
+        [
+          {
+            "node": "Déjà briefé ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Déjà briefé ?": {
+      "main": [
+        [
+          {
+            "node": "Premier passage ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contexte client": {
+      "main": [
+        [
+          {
+            "node": "Fiche briefing (IA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fiche briefing (IA)": {
+      "main": [
+        [
+          {
+            "node": "Briefing sur Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Briefing sur Discord": {
+      "main": [
+        [
+          {
+            "node": "Marquer comme briefé",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Premier passage ?": {
+      "main": [
+        [
+          {
+            "node": "Contexte client",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "d1d2d3d4-1301-1301-1301-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-freelance",
+      "name": "freelance"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    }
+  ]
+}

@@ -21,22 +21,31 @@
       "id": "a1b2c3d4-0015-0015-0015-000000000002",
       "name": "Récupérer infos client",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         500,
         300
       ],
       "parameters": {
         "operation": "select",
-        "schema": "public",
-        "table": "clients",
+        "schema": {
+          "__rl": true,
+          "mode": "name",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "clients"
+        },
         "returnAll": false,
         "limit": 1,
         "where": {
           "values": [
             {
               "column": "id",
-              "value": "={{ $json.client_id }}"
+              "value": "={{ $json.client_id }}",
+              "condition": "equals"
             }
           ]
         }
@@ -54,7 +63,7 @@
       "parameters": {
         "resume": "timeInterval",
         "unit": "days",
-        "value": 3
+        "amount": 3
       }
     },
     {
@@ -68,30 +77,45 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $json.email }}",
         "subject": "Votre avis nous intéresse – {{ $json.entreprise }}",
         "emailType": "html",
-        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Nous espérons que la prestation <strong>{{ $('Webhook Fin de prestation').item.json.description_prestation }}</strong> a répondu à vos attentes.</p><p>Nous serions ravis de connaître votre retour d'expérience :</p><p style='text-align:center'><a href='https://g.page/r/nexum-flow/review' style='background:#4285f4;color:white;padding:12px 24px;text-decoration:none;border-radius:4px'>⭐ Laisser un avis Google</a></p><p>Cela nous aide énormément et ne prend que 2 minutes. Merci d'avance !</p><p>Cordialement,<br>L'équipe Nexum Flow</p></body></html>"
+        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Nous espérons que la prestation <strong>{{ $('Webhook Fin de prestation').item.json.description_prestation }}</strong> a répondu à vos attentes.</p><p>Nous serions ravis de connaître votre retour d'expérience :</p><p style='text-align:center'><a href='https://g.page/r/nexum-flow/review' style='background:#4285f4;color:white;padding:12px 24px;text-decoration:none;border-radius:4px'>⭐ Laisser un avis Google</a></p><p>Cela nous aide énormément et ne prend que 2 minutes. Merci d'avance !</p><p>Cordialement,<br>L'équipe Nexum Flow</p></body></html>",
+        "sendTo": "={{ $json.email }}"
       }
     },
     {
       "id": "a1b2c3d4-0015-0015-0015-000000000005",
       "name": "Enregistrer demande d'avis",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         1000,
         420
       ],
       "parameters": {
         "operation": "insert",
-        "schema": "public",
-        "table": "avis_clients",
-        "columns": "client_id, date_demande",
-        "additionalFields": {
-          "date_demande": "={{ new Date().toISOString() }}"
+        "schema": {
+          "__rl": true,
+          "mode": "name",
+          "value": "public"
         },
-        "options": {}
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "avis_clients"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "client_id": "={{ $json.client_id }}",
+            "date_demande": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
       }
     },
     {
@@ -106,14 +130,14 @@
       "parameters": {
         "resume": "timeInterval",
         "unit": "days",
-        "value": 7
+        "amount": 7
       }
     },
     {
       "id": "a1b2c3d4-0015-0015-0015-000000000007",
       "name": "A-t-il laissé un avis ?",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         1500,
         300
@@ -121,10 +145,9 @@
       "parameters": {
         "operation": "executeQuery",
         "query": "SELECT id FROM avis_clients WHERE client_id = $1 AND date_reception IS NOT NULL",
-        "additionalFields": {
-          "queryParams": "={{ [$('Webhook Fin de prestation').item.json.client_id] }}"
-        },
-        "options": {}
+        "options": {
+          "queryReplacement": "={{ [$('Webhook Fin de prestation').item.json.client_id] }}"
+        }
       }
     },
     {
@@ -164,10 +187,10 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $('Récupérer infos client').item.json.email }}",
         "subject": "Dernier rappel – Votre avis compte pour nous",
         "emailType": "html",
-        "message": "<html><body><p>Bonjour {{ $('Récupérer infos client').item.json.prenom }},</p><p>Je me permets de vous rappeler notre demande d'avis. Votre retour est précieux pour nous améliorer et aider d'autres clients à nous trouver.</p><p style='text-align:center'><a href='https://g.page/r/nexum-flow/review' style='background:#4285f4;color:white;padding:12px 24px;text-decoration:none;border-radius:4px'>⭐ Laisser un avis (2 min)</a></p><p>Merci de votre fidélité,<br>L'équipe Nexum Flow</p></body></html>"
+        "message": "<html><body><p>Bonjour {{ $('Récupérer infos client').item.json.prenom }},</p><p>Je me permets de vous rappeler notre demande d'avis. Votre retour est précieux pour nous améliorer et aider d'autres clients à nous trouver.</p><p style='text-align:center'><a href='https://g.page/r/nexum-flow/review' style='background:#4285f4;color:white;padding:12px 24px;text-decoration:none;border-radius:4px'>⭐ Laisser un avis (2 min)</a></p><p>Merci de votre fidélité,<br>L'équipe Nexum Flow</p></body></html>",
+        "sendTo": "={{ $('Récupérer infos client').item.json.email }}"
       }
     }
   ],

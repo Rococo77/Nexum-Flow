@@ -24,8 +24,41 @@
           ],
           "q": "subject:(candidature OR CV OR recrutement OR poste)"
         },
+        "simple": false,
         "options": {
           "downloadAttachments": true
+        }
+      }
+    },
+    {
+      "id": "a1b2c3d4-0020-0020-0020-000000000010",
+      "name": "CV joint ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-piece-jointe",
+              "leftValue": "={{ Object.keys($binary ?? {}).length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
         }
       }
     },
@@ -33,20 +66,22 @@
       "id": "a1b2c3d4-0020-0020-0020-000000000002",
       "name": "Extraire texte du CV",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
+      "typeVersion": 4.2,
       "position": [
-        500,
-        300
+        650,
+        200
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.API_HOST }}/api/v1/documents/extract-text",
+        "url": "=https://{{ $env.API_HOST }}/api/v1/documents/extract-text",
         "sendBody": true,
+        "contentType": "multipart-form-data",
         "bodyParameters": {
           "parameters": [
             {
+              "parameterType": "formBinaryData",
               "name": "file",
-              "value": "={{ $json.attachments[0] }}"
+              "inputDataFieldName": "attachment_0"
             }
           ]
         }
@@ -55,15 +90,20 @@
     {
       "id": "a1b2c3d4-0020-0020-0020-000000000003",
       "name": "Analyser CV avec IA",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [
         750,
         300
       ],
       "parameters": {
+        "resource": "text",
         "operation": "message",
-        "modelId": "mistral-large-latest",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-large-latest"
+        },
         "messages": {
           "values": [
             {
@@ -72,7 +112,7 @@
             },
             {
               "role": "user",
-              "content": "Email de candidature:\nDe: {{ $('Gmail Trigger – CV reçus').item.json.from }}\nSujet: {{ $('Gmail Trigger – CV reçus').item.json.subject }}\nMessage: {{ $('Gmail Trigger – CV reçus').item.json.text || $('Gmail Trigger – CV reçus').item.json.snippet }}\n\nContenu CV:\n{{ $json.text || 'CV non extractible' }}"
+              "content": "Email de candidature:\nDe: {{ $('Gmail Trigger – CV reçus').item.json.from?.text }}\nSujet: {{ $('Gmail Trigger – CV reçus').item.json.subject }}\nMessage: {{ ($('Gmail Trigger – CV reçus').item.json.text || '').substring(0, 1000) }}\n\nContenu CV:\n{{ $json.text || 'CV non extractible – évaluer sur le message uniquement' }}"
             }
           ]
         },
@@ -93,7 +133,7 @@
       ],
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const content = $input.item.json.message.content;\nlet analyse;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  analyse = JSON.parse(match[0]);\n} catch(e) {\n  analyse = { prenom_nom: 'Inconnu', score_adequation: 0, recommandation: 'liste_attente', raison_decision: 'Analyse impossible' };\n}\nreturn {\n  ...analyse,\n  email_original: $('Gmail Trigger – CV reçus').item.json.from,\n  date_reception: new Date().toISOString()\n};"
+        "jsCode": "const content = $input.item.json.message.content;\nlet analyse;\ntry {\n  const match = content.match(/\\{[\\s\\S]*\\}/);\n  analyse = JSON.parse(match[0]);\n} catch(e) {\n  analyse = { prenom_nom: 'Inconnu', score_adequation: 0, recommandation: 'liste_attente', raison_decision: 'Analyse impossible' };\n}\nreturn {\n  ...analyse,\n  email_original: $('Gmail Trigger – CV reçus').item.json.from?.value?.[0]?.address || $('Gmail Trigger – CV reçus').item.json.from?.text,\n  date_reception: new Date().toISOString()\n};"
       }
     },
     {
@@ -107,7 +147,8 @@
       ],
       "parameters": {
         "mode": "expression",
-        "output": "={{ $json.recommandation }}"
+        "output": "={{ [\"retenir\", \"liste_attente\", \"refuser\"].includes($json.recommandation) ? [\"retenir\", \"liste_attente\", \"refuser\"].indexOf($json.recommandation) : 1 }}",
+        "numberOutputs": 3
       }
     },
     {
@@ -120,10 +161,21 @@
         100
       ],
       "parameters": {
-        "operation": "sendMessage",
-        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
-        "channelId": "={{ $env.DISCORD_RH_CHANNEL_ID }}",
-        "content": "✅ **CANDIDATURE À RETENIR** – Score {{ $json.score_adequation }}/100\n**Candidat :** {{ $json.prenom_nom }}\n**Poste :** {{ $json.poste_vise }}\n**Niveau :** {{ $json.niveau_global }} ({{ $json.experience_annees }} ans)\n**Compétences clés :** {{ $json.competences_techniques.slice(0, 5).join(', ') }}\n**n8n :** {{ $json.competences_n8n ? 'Oui ✅' : 'Non' }} | **IA :** {{ $json.competences_ia ? 'Oui ✅' : 'Non' }}\n📧 {{ $json.email_original }}\n**Raison :** {{ $json.raison_decision }}"
+        "resource": "message",
+        "operation": "send",
+        "guildId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_GUILD_ID }}"
+        },
+        "sendTo": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_RH_CHANNEL_ID }}"
+        },
+        "content": "✅ **CANDIDATURE À RETENIR** – Score {{ $json.score_adequation }}/100\n**Candidat :** {{ $json.prenom_nom }}\n**Poste :** {{ $json.poste_vise }}\n**Niveau :** {{ $json.niveau_global }} ({{ $json.experience_annees }} ans)\n**Compétences clés :** {{ $json.competences_techniques.slice(0, 5).join(', ') }}\n**n8n :** {{ $json.competences_n8n ? 'Oui ✅' : 'Non' }} | **IA :** {{ $json.competences_ia ? 'Oui ✅' : 'Non' }}\n📧 {{ $json.email_original }}\n**Raison :** {{ $json.raison_decision }}",
+        "options": {}
       }
     },
     {
@@ -164,7 +216,25 @@
       "main": [
         [
           {
+            "node": "CV joint ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CV joint ?": {
+      "main": [
+        [
+          {
             "node": "Extraire texte du CV",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyser CV avec IA",
             "type": "main",
             "index": 0
           }

@@ -54,7 +54,8 @@
             }
           ]
         },
-        "headers": {
+        "sendHeaders": true,
+        "headerParameters": {
           "parameters": [
             {
               "name": "Accept",
@@ -151,15 +152,20 @@
     {
       "id": "a1b2c3d4-0019-0019-0019-000000000006",
       "name": "Analyser et résumer avec IA",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [
         1300,
         320
       ],
       "parameters": {
+        "resource": "text",
         "operation": "message",
-        "modelId": "mistral-large-latest",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-large-latest"
+        },
         "messages": {
           "values": [
             {
@@ -202,10 +208,21 @@
         200
       ],
       "parameters": {
-        "operation": "sendMessage",
-        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
-        "channelId": "={{ $env.DISCORD_VEILLE_CHANNEL_ID }}",
-        "content": "={{ $json.rapport_discord.substring(0, 1900) }}"
+        "resource": "message",
+        "operation": "send",
+        "guildId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_GUILD_ID }}"
+        },
+        "sendTo": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_VEILLE_CHANNEL_ID }}"
+        },
+        "content": "={{ $json.rapport_discord.substring(0, 1900) }}",
+        "options": {}
       }
     },
     {
@@ -219,10 +236,10 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $env.SMTP_USER }}",
         "subject": "Veille Technologique – {{ $json.date }}",
         "emailType": "html",
-        "message": "<html><body><h2>Veille Technologique – {{ $json.date }}</h2><h3>Analyse IA</h3><p>{{ $json.analyse.replace(/\\n/g, '<br>') }}</p><h3>GitHub Trending</h3><ul>{{ $json.sources.github.map(r => `<li><a href='${r.url}'>${r.titre}</a> – ${r.stars}⭐</li>`).join('') }}</ul><h3>Hacker News</h3><ul>{{ $json.sources.hackernews.map(h => `<li><a href='${h.url}'>${h.titre}</a></li>`).join('') }}</ul><h3>Dev.to</h3><ul>{{ ($json.sources.devto || []).map(a => `<li><a href='${a.url}'>${a.titre}</a></li>`).join('') }}</ul></body></html>"
+        "message": "<html><body><h2>Veille Technologique – {{ $json.date }}</h2><h3>Analyse IA</h3><p>{{ $json.analyse.replace(/\\n/g, '<br>') }}</p><h3>GitHub Trending</h3><ul>{{ $json.sources.github.map(r => `<li><a href='${r.url}'>${r.titre}</a> – ${r.stars}⭐</li>`).join('') }}</ul><h3>Hacker News</h3><ul>{{ $json.sources.hackernews.map(h => `<li><a href='${h.url}'>${h.titre}</a></li>`).join('') }}</ul><h3>Dev.to</h3><ul>{{ ($json.sources.devto || []).map(a => `<li><a href='${a.url}'>${a.titre}</a></li>`).join('') }}</ul></body></html>",
+        "sendTo": "={{ $env.SMTP_USER }}"
       }
     },
     {
@@ -235,8 +252,8 @@
         320
       ],
       "parameters": {
-        "mode": "combine",
-        "options": {}
+        "mode": "append",
+        "numberInputs": 3
       }
     }
   ],

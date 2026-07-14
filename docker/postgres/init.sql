@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS clients (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     lead_id UUID REFERENCES leads(id),
     nom VARCHAR(255) NOT NULL,
+    prenom VARCHAR(255),
     email VARCHAR(255),
     telephone VARCHAR(50),
     entreprise VARCHAR(255),
@@ -430,3 +431,190 @@ CREATE INDEX IF NOT EXISTS idx_veille_pertinence ON veille_marches(pertinence);
 
 CREATE TRIGGER trigger_projets_updated_at BEFORE UPDATE ON projets FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trigger_taches_updated_at BEFORE UPDATE ON taches FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- Module 12 – Opérations : journal des erreurs de workflows (12.1)
+CREATE TABLE IF NOT EXISTS workflow_errors (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    workflow_id VARCHAR(100),
+    workflow_name VARCHAR(255),
+    execution_id VARCHAR(100),
+    execution_url VARCHAR(1000),
+    noeud VARCHAR(255),
+    message TEXT,
+    mode VARCHAR(50),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Factures fournisseurs entrantes (4.4)
+CREATE TABLE IF NOT EXISTS factures_fournisseurs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    fournisseur VARCHAR(255),
+    numero_facture VARCHAR(100),
+    date_facture DATE,
+    date_echeance DATE,
+    montant_ht DECIMAL(10,2),
+    montant_tva DECIMAL(10,2),
+    montant_ttc DECIMAL(10,2),
+    devise VARCHAR(10) DEFAULT 'EUR',
+    categorie VARCHAR(50),
+    statut VARCHAR(50) DEFAULT 'a_payer',
+    image_url VARCHAR(1000),
+    texte_ocr TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_errors_workflow ON workflow_errors(workflow_name);
+CREATE INDEX IF NOT EXISTS idx_factures_fournisseurs_echeance ON factures_fournisseurs(date_echeance);
+
+-- ============================================================
+-- 10 (extensions) – Vie quotidienne
+-- ============================================================
+
+-- Dates importantes & rappels (10.15)
+CREATE TABLE IF NOT EXISTS dates_importantes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    libelle VARCHAR(255) NOT NULL,
+    date_cible DATE NOT NULL,
+    type VARCHAR(50) DEFAULT 'autre',
+    recurrence VARCHAR(20) DEFAULT 'annuelle',
+    actif BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Garde-manger anti-gaspillage (10.16)
+CREATE TABLE IF NOT EXISTS garde_manger (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    produit VARCHAR(255) NOT NULL,
+    date_peremption DATE NOT NULL,
+    quantite VARCHAR(100) DEFAULT '1',
+    consomme BOOLEAN DEFAULT FALSE,
+    alerte_envoyee BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Bibliothèque lecture & watchlist (10.17)
+CREATE TABLE IF NOT EXISTS watchlist_perso (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    titre VARCHAR(255) NOT NULL,
+    type VARCHAR(20) DEFAULT 'autre',
+    statut VARCHAR(20) DEFAULT 'a_decouvrir',
+    note DECIMAL(3,1),
+    commentaire TEXT,
+    auteur VARCHAR(255),
+    annee INTEGER,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Relevés du foyer (10.18)
+CREATE TABLE IF NOT EXISTS releves_foyer (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    type VARCHAR(30) NOT NULL,
+    valeur DECIMAL(12,2) NOT NULL,
+    unite VARCHAR(20),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================================
+-- 13 – Freelance / agence solo
+-- ============================================================
+
+-- Briefings de RDV déjà envoyés (13.1)
+CREATE TABLE IF NOT EXISTS briefings_envoyes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    event_id VARCHAR(255) UNIQUE NOT NULL,
+    titre VARCHAR(500),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Activités par projet – time-tracking passif (13.2)
+CREATE TABLE IF NOT EXISTS activites_projets (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    projet VARCHAR(255) NOT NULL,
+    source VARCHAR(100) DEFAULT 'manuel',
+    description VARCHAR(500),
+    duree_minutes INTEGER DEFAULT 30,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Mentions de la marque – e-réputation (13.5)
+CREATE TABLE IF NOT EXISTS mentions_marque (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    source VARCHAR(50) NOT NULL,
+    external_id VARCHAR(255) NOT NULL,
+    titre VARCHAR(500),
+    url VARCHAR(1000),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (source, external_id)
+);
+
+-- ============================================================
+-- 14 – Packs verticaux
+-- ============================================================
+
+-- Avis Google & réponses suggérées (14.3)
+CREATE TABLE IF NOT EXISTS avis_google_reponses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    external_id VARCHAR(255) UNIQUE NOT NULL,
+    auteur VARCHAR(255),
+    note INTEGER,
+    texte TEXT,
+    reponse_ia TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Réservations restaurant (14.2)
+CREATE TABLE IF NOT EXISTS reservations_resto (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nom VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
+    telephone VARCHAR(50),
+    date DATE NOT NULL,
+    heure VARCHAR(5) NOT NULL,
+    couverts INTEGER DEFAULT 2,
+    commentaire VARCHAR(500),
+    statut VARCHAR(50) DEFAULT 'confirmee',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Visites immobilières (14.4)
+CREATE TABLE IF NOT EXISTS visites_immo (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    bien VARCHAR(500) NOT NULL,
+    nom VARCHAR(255),
+    email VARCHAR(255),
+    telephone VARCHAR(50),
+    date_visite DATE NOT NULL,
+    agent_email VARCHAR(255),
+    statut VARCHAR(50) DEFAULT 'planifiee',
+    relance_envoyee BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Dons et cotisations reçus (14.5)
+CREATE TABLE IF NOT EXISTS dons_recus (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nom VARCHAR(255),
+    email VARCHAR(255),
+    montant DECIMAL(10,2) NOT NULL,
+    type VARCHAR(20) DEFAULT 'don',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Membres de l'association (14.5)
+CREATE TABLE IF NOT EXISTS membres_asso (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nom VARCHAR(255),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    date_fin_adhesion DATE,
+    derniere_relance DATE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_garde_manger_peremption ON garde_manger(date_peremption);
+CREATE INDEX IF NOT EXISTS idx_activites_projets_semaine ON activites_projets(created_at);
+CREATE INDEX IF NOT EXISTS idx_reservations_date ON reservations_resto(date);
+CREATE INDEX IF NOT EXISTS idx_visites_immo_relance ON visites_immo(statut, relance_envoyee);
+CREATE INDEX IF NOT EXISTS idx_membres_fin_adhesion ON membres_asso(date_fin_adhesion);
+
+CREATE TRIGGER trigger_watchlist_updated_at BEFORE UPDATE ON watchlist_perso FOR EACH ROW EXECUTE FUNCTION update_updated_at();

@@ -29,7 +29,7 @@
       "parameters": {
         "method": "POST",
         "url": "https://admin.googleapis.com/admin/directory/v1/users",
-        "authentication": "oAuth2",
+        "authentication": "predefinedCredentialType",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -58,7 +58,8 @@
               "value": "={{ '/Collaborateurs/' + $json.poste }}"
             }
           ]
-        }
+        },
+        "nodeCredentialType": "gSuiteAdminOAuth2Api"
       }
     },
     {
@@ -73,20 +74,21 @@
       "parameters": {
         "method": "POST",
         "url": "https://discord.com/api/v10/guilds/{{ $env.DISCORD_GUILD_ID }}/members",
-        "headers": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bot {{ $env.DISCORD_BOT_TOKEN }}"
-            }
-          ]
-        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "access_token",
               "value": "={{ $json.discord_token || '' }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bot {{ $env.DISCORD_BOT_TOKEN }}"
             }
           ]
         }
@@ -104,14 +106,6 @@
       "parameters": {
         "method": "POST",
         "url": "https://{{ $env.N8N_HOST }}/api/v1/users",
-        "headers": {
-          "parameters": [
-            {
-              "name": "X-N8N-API-KEY",
-              "value": "={{ $env.N8N_API_KEY }}"
-            }
-          ]
-        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -132,21 +126,35 @@
               "value": "={{ $json.role_n8n || 'member' }}"
             }
           ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "={{ $env.N8N_API_KEY }}"
+            }
+          ]
         }
       }
     },
     {
       "id": "a1b2c3d4-0021-0021-0021-000000000005",
       "name": "Générer document accueil",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [
         750,
         300
       ],
       "parameters": {
+        "resource": "text",
         "operation": "message",
-        "modelId": "mistral-large-latest",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-large-latest"
+        },
         "messages": {
           "values": [
             {
@@ -176,7 +184,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.API_HOST }}/api/v1/storage/dossier",
+        "url": "=https://{{ $env.API_HOST }}/api/v1/storage/dossier",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -199,10 +207,10 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $('Webhook Nouveau Collaborateur').item.json.email_perso }}",
         "subject": "Bienvenue chez Nexum Flow, {{ $('Webhook Nouveau Collaborateur').item.json.prenom }} !",
         "emailType": "html",
-        "message": "<html><body><h1>Bienvenue {{ $('Webhook Nouveau Collaborateur').item.json.prenom }} !</h1><p>Nous sommes ravis de vous accueillir dans l'équipe Nexum Flow.</p><h2>Vos accès</h2><ul><li><strong>Email professionnel :</strong> {{ $('Webhook Nouveau Collaborateur').item.json.prenom.toLowerCase() }}.{{ $('Webhook Nouveau Collaborateur').item.json.nom.toLowerCase() }}@{{ $env.COMPANY_DOMAIN }}</li><li><strong>n8n :</strong> https://{{ $env.N8N_HOST }}</li></ul><h2>Kit d'accueil</h2><div style='background:#f8f9fa;padding:15px;border-radius:8px'>{{ $('Générer document accueil').item.json.message.content.replace(/\\n/g, '<br>') }}</div><p>N'hésitez pas à contacter votre manager pour toute question.</p><p>À très bientôt !<br>L'équipe Nexum Flow</p></body></html>"
+        "message": "<html><body><h1>Bienvenue {{ $('Webhook Nouveau Collaborateur').item.json.prenom }} !</h1><p>Nous sommes ravis de vous accueillir dans l'équipe Nexum Flow.</p><h2>Vos accès</h2><ul><li><strong>Email professionnel :</strong> {{ $('Webhook Nouveau Collaborateur').item.json.prenom.toLowerCase() }}.{{ $('Webhook Nouveau Collaborateur').item.json.nom.toLowerCase() }}@{{ $env.COMPANY_DOMAIN }}</li><li><strong>n8n :</strong> https://{{ $env.N8N_HOST }}</li></ul><h2>Kit d'accueil</h2><div style='background:#f8f9fa;padding:15px;border-radius:8px'>{{ $('Générer document accueil').item.json.message.content.replace(/\\n/g, '<br>') }}</div><p>N'hésitez pas à contacter votre manager pour toute question.</p><p>À très bientôt !<br>L'équipe Nexum Flow</p></body></html>",
+        "sendTo": "={{ $('Webhook Nouveau Collaborateur').item.json.email_perso }}"
       }
     },
     {
@@ -215,10 +223,21 @@
         300
       ],
       "parameters": {
-        "operation": "sendMessage",
-        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
-        "channelId": "={{ $env.DISCORD_GENERAL_CHANNEL_ID }}",
-        "content": "🎉 **Bienvenue {{ $('Webhook Nouveau Collaborateur').item.json.prenom }} {{ $('Webhook Nouveau Collaborateur').item.json.nom }} !**\nPoste : **{{ $('Webhook Nouveau Collaborateur').item.json.poste }}**\nDate de début : {{ $('Webhook Nouveau Collaborateur').item.json.date_debut }}\n\nSouhaitons-lui la bienvenue dans l'équipe ! 👋"
+        "resource": "message",
+        "operation": "send",
+        "guildId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_GUILD_ID }}"
+        },
+        "sendTo": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_GENERAL_CHANNEL_ID }}"
+        },
+        "content": "🎉 **Bienvenue {{ $('Webhook Nouveau Collaborateur').item.json.prenom }} {{ $('Webhook Nouveau Collaborateur').item.json.nom }} !**\nPoste : **{{ $('Webhook Nouveau Collaborateur').item.json.poste }}**\nDate de début : {{ $('Webhook Nouveau Collaborateur').item.json.date_debut }}\n\nSouhaitons-lui la bienvenue dans l'équipe ! 👋",
+        "options": {}
       }
     },
     {
@@ -232,9 +251,10 @@
       ],
       "parameters": {
         "options": {
-          "responseCode": 200,
-          "responseData": "={{ JSON.stringify({ success: true, message: 'Onboarding lancé avec succès' }) }}"
-        }
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Onboarding lancé avec succès' }) }}"
       }
     }
   ],

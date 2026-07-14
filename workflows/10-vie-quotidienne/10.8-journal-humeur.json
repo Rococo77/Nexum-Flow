@@ -35,7 +35,7 @@
       "id": "b1b2c3d4-1008-1008-1008-000000000003",
       "name": "Enregistrer entrée",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         540,
         200
@@ -43,21 +43,28 @@
       "parameters": {
         "operation": "executeQuery",
         "query": "INSERT INTO journal_perso (date, humeur, note) VALUES ($1, $2, $3) RETURNING id",
-        "queryParams": "={{ [$json.date, $json.humeur, $json.note] }}"
+        "options": {
+          "queryReplacement": "={{ [$json.date, $json.humeur, $json.note] }}"
+        }
       }
     },
     {
       "id": "b1b2c3d4-1008-1008-1008-000000000004",
       "name": "Réflexion bienveillante (IA)",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [
         760,
         200
       ],
       "parameters": {
+        "resource": "text",
         "operation": "message",
-        "modelId": "mistral-small-latest",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-small-latest"
+        },
         "messages": {
           "values": [
             {
@@ -87,9 +94,10 @@
       ],
       "parameters": {
         "options": {
-          "responseCode": 200,
-          "responseData": "={{ JSON.stringify({ success: true, reflexion: $json.message.content }) }}"
-        }
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, reflexion: $json.message.content }) }}"
       }
     },
     {
@@ -116,7 +124,7 @@
       "id": "b1b2c3d4-1008-1008-1008-000000000007",
       "name": "Entrées de la semaine",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         320,
         480
@@ -167,15 +175,20 @@
     {
       "id": "b1b2c3d4-1008-1008-1008-000000000010",
       "name": "Bilan hebdo (IA)",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [
         980,
         480
       ],
       "parameters": {
+        "resource": "text",
         "operation": "message",
-        "modelId": "mistral-large-latest",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-large-latest"
+        },
         "messages": {
           "values": [
             {
@@ -205,10 +218,10 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $env.EMAIL_PERSO }}",
         "subject": "=🌈 Bilan de votre semaine – humeur moyenne {{ $('Agréger la semaine').item.json.moyenne }}/5",
         "emailType": "html",
-        "message": "={{ $json.message.content }}"
+        "message": "={{ $json.message.content }}",
+        "sendTo": "={{ $env.EMAIL_PERSO }}"
       }
     }
   ],

@@ -28,12 +28,16 @@
       ],
       "parameters": {
         "operation": "getAll",
-        "calendarId": "={{ $env.GOOGLE_CALENDAR_ID }}",
         "returnAll": false,
         "limit": 50,
         "options": {
           "timeMin": "={{ new Date().toISOString() }}",
           "timeMax": "={{ new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() }}"
+        },
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_CALENDAR_ID }}"
         }
       }
     },
@@ -62,10 +66,10 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $json.demandeur.email }}",
         "subject": "Votre demande de rendez-vous – Créneaux disponibles",
         "emailType": "html",
-        "message": "<html><body><p>Bonjour {{ $json.demandeur.prenom }},</p><p>Merci pour votre demande de rendez-vous. Voici les créneaux disponibles :</p><ul>{{ $json.creneaux.map((c, i) => `<li><a href=\"https://{{ $env.N8N_HOST }}/webhook/confirmer-rdv?creneau=${encodeURIComponent(c.debut)}&client=${encodeURIComponent($json.demandeur.email)}\">Confirmer : ${c.label}</a></li>`).join('') }}</ul><p>Cliquez sur le créneau de votre choix pour confirmer directement.</p><p>À bientôt,<br>L'équipe Nexum Flow</p></body></html>"
+        "message": "<html><body><p>Bonjour {{ $json.demandeur.prenom }},</p><p>Merci pour votre demande de rendez-vous. Voici les créneaux disponibles :</p><ul>{{ $json.creneaux.map((c, i) => `<li><a href=\"https://{{ $env.N8N_HOST }}/webhook/confirmer-rdv?creneau=${encodeURIComponent(c.debut)}&client=${encodeURIComponent($json.demandeur.email)}\">Confirmer : ${c.label}</a></li>`).join('') }}</ul><p>Cliquez sur le créneau de votre choix pour confirmer directement.</p><p>À bientôt,<br>L'équipe Nexum Flow</p></body></html>",
+        "sendTo": "={{ $json.demandeur.email }}"
       }
     },
     {
@@ -109,12 +113,16 @@
       ],
       "parameters": {
         "operation": "create",
-        "calendarId": "={{ $env.GOOGLE_CALENDAR_ID }}",
         "start": "={{ $('Valider paramètres confirmation').item.json.creneau_valide }}",
         "end": "={{ new Date(new Date($('Valider paramètres confirmation').item.json.creneau_valide).getTime() + 60*60*1000).toISOString() }}",
         "additionalFields": {
           "summary": "RDV – {{ $('Valider paramètres confirmation').item.json.email_valide }}",
           "description": "Rendez-vous confirmé via le système de prise de RDV automatique"
+        },
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_CALENDAR_ID }}"
         }
       }
     },
@@ -129,10 +137,10 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $('Valider paramètres confirmation').item.json.email_valide }}",
         "subject": "Rendez-vous confirmé",
         "emailType": "html",
-        "message": "<html><body><p>Votre rendez-vous est confirmé pour le <strong>{{ new Date($('Webhook Confirmation RDV').item.json.query.creneau).toLocaleString('fr-FR') }}</strong>.</p><p>Un rappel vous sera envoyé la veille.</p><p>À bientôt !</p></body></html>"
+        "message": "<html><body><p>Votre rendez-vous est confirmé pour le <strong>{{ new Date($('Webhook Confirmation RDV').item.json.query.creneau).toLocaleString('fr-FR') }}</strong>.</p><p>Un rappel vous sera envoyé la veille.</p><p>À bientôt !</p></body></html>",
+        "sendTo": "={{ $('Valider paramètres confirmation').item.json.email_valide }}"
       }
     },
     {
@@ -147,7 +155,6 @@
       "parameters": {
         "options": {
           "responseCode": 200,
-          "responseData": "<html><body><h2>✅ Rendez-vous confirmé !</h2><p>Vous recevrez un email de confirmation.</p></body></html>",
           "responseHeaders": {
             "entries": [
               {
@@ -156,7 +163,9 @@
               }
             ]
           }
-        }
+        },
+        "respondWith": "text",
+        "responseBody": "<html><body><h2>✅ Rendez-vous confirmé !</h2><p>Vous recevrez un email de confirmation.</p></body></html>"
       }
     }
   ],

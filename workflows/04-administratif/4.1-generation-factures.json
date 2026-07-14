@@ -61,7 +61,7 @@
       "id": "a1b2c3d4-0009-0009-0009-000000000003",
       "name": "Récupérer client et devis",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         750,
         200
@@ -69,10 +69,9 @@
       "parameters": {
         "operation": "executeQuery",
         "query": "SELECT c.*, d.id as devis_id, d.numero as devis_numero, d.montant_ht, d.montant_ttc\nFROM clients c\nJOIN devis d ON d.client_id = c.id\nWHERE c.email = $1\n  AND d.statut = 'envoye'\nORDER BY d.created_at DESC\nLIMIT 1",
-        "additionalFields": {
-          "queryParams": "={{ [$json.data.object.receipt_email] }}"
-        },
-        "options": {}
+        "options": {
+          "queryReplacement": "={{ [$json.data.object.receipt_email] }}"
+        }
       }
     },
     {
@@ -100,7 +99,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.API_HOST }}/api/v1/documents/facture/pdf",
+        "url": "=https://{{ $env.API_HOST }}/api/v1/documents/facture/pdf",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -123,22 +122,41 @@
       "id": "a1b2c3d4-0009-0009-0009-000000000006",
       "name": "Enregistrer facture en base",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         1500,
         200
       ],
       "parameters": {
         "operation": "insert",
-        "schema": "public",
-        "table": "factures",
-        "columns": "client_id, devis_id, numero, montant_ht, montant_tva, montant_ttc, statut, date_echeance",
-        "additionalFields": {
-          "statut": "payee",
-          "date_paiement": "={{ new Date().toISOString() }}"
+        "schema": {
+          "__rl": true,
+          "mode": "name",
+          "value": "public"
         },
-        "options": {
-          "returnFields": "id, numero"
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "factures"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "client_id": "={{ $json.client_id }}",
+            "devis_id": "={{ $json.devis_id }}",
+            "numero": "={{ $json.numero }}",
+            "montant_ht": "={{ $json.montant_ht }}",
+            "montant_tva": "={{ $json.montant_tva }}",
+            "montant_ttc": "={{ $json.montant_ttc }}",
+            "statut": "payee",
+            "date_echeance": "={{ $json.date_echeance }}",
+            "date_paiement": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         }
       }
     },
@@ -153,7 +171,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.API_HOST }}/api/v1/storage/upload",
+        "url": "=https://{{ $env.API_HOST }}/api/v1/storage/upload",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -180,16 +198,18 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $('Récupérer client et devis').item.json.email }}",
         "subject": "Votre facture n°{{ $('Générer numéro de facture').item.json.numero_facture }}",
         "emailType": "html",
         "message": "<html><body><p>Bonjour {{ $('Récupérer client et devis').item.json.prenom }},</p><p>Veuillez trouver ci-joint votre facture n°<strong>{{ $('Générer numéro de facture').item.json.numero_facture }}</strong> d'un montant de <strong>{{ $('Générer numéro de facture').item.json.montant_ttc }}€ TTC</strong>.</p><p>Merci de votre confiance.</p><p>Cordialement,<br>L'équipe Nexum Flow</p></body></html>",
-        "attachmentsUi": {
-          "attachmentsBinary": [
-            {
-              "property": "data"
-            }
-          ]
+        "sendTo": "={{ $('Récupérer client et devis').item.json.email }}",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "data"
+              }
+            ]
+          }
         }
       }
     },

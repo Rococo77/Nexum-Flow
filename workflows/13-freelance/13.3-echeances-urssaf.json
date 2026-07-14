@@ -1,0 +1,152 @@
+{
+  "name": "13.3 – Rappel déclaration URSSAF avec CA pré-calculé",
+  "nodes": [
+    {
+      "id": "d1d2d3d4-1303-1303-1303-000000000001",
+      "name": "Tous les jours 7h30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 7 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1303-1303-1303-000000000002",
+      "name": "Prochaine échéance URSSAF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Échéances trimestrielles auto-entrepreneur : 31/01, 30/04, 31/07, 31/10\nconst now = new Date();\nconst annee = now.getFullYear();\nconst echeances = [\n  { date: new Date(annee, 0, 31), tDebut: new Date(annee - 1, 9, 1), tFin: new Date(annee, 0, 1) },\n  { date: new Date(annee, 3, 30), tDebut: new Date(annee, 0, 1), tFin: new Date(annee, 3, 1) },\n  { date: new Date(annee, 6, 31), tDebut: new Date(annee, 3, 1), tFin: new Date(annee, 6, 1) },\n  { date: new Date(annee, 9, 31), tDebut: new Date(annee, 6, 1), tFin: new Date(annee, 9, 1) },\n  { date: new Date(annee + 1, 0, 31), tDebut: new Date(annee, 9, 1), tFin: new Date(annee + 1, 0, 1) },\n];\nconst prochaine = echeances.find(e => e.date >= new Date(now.toDateString()));\nconst dansJours = Math.round((prochaine.date - new Date(now.toDateString())) / 86400000);\nif (![10, 3, 0].includes(dansJours)) return [];\nconst iso = d => d.toISOString().split('T')[0];\nreturn [{ json: {\n  echeance: iso(prochaine.date), dans_jours: dansJours,\n  periode_debut: iso(prochaine.tDebut), periode_fin: iso(prochaine.tFin)\n} }];"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1303-1303-1303-000000000003",
+      "name": "CA encaissé de la période",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(SUM(montant_ttc), 0)::float AS ca,\n       COUNT(*)::int AS nb_factures\nFROM factures\nWHERE statut = 'payee'\n  AND date_paiement >= $1::date AND date_paiement < $2::date",
+        "options": {
+          "queryReplacement": "={{ [$json.periode_debut, $json.periode_fin] }}"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1303-1303-1303-000000000004",
+      "name": "Calculer les cotisations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const e = $('Prochaine échéance URSSAF').first().json;\nconst ca = $input.first().json.ca || 0;\nconst taux = Number($env.TAUX_COTISATIONS_URSSAF || 0.212);\nreturn [{ json: {\n  ...e,\n  ca: Math.round(ca * 100) / 100,\n  nb_factures: $input.first().json.nb_factures,\n  taux_pct: Math.round(taux * 1000) / 10,\n  cotisations: Math.round(ca * taux * 100) / 100\n} }];"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1303-1303-1303-000000000005",
+      "name": "Email de rappel URSSAF",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        300
+      ],
+      "parameters": {
+        "operation": "send",
+        "sendTo": "={{ $env.SMTP_USER }}",
+        "subject": "📋 Déclaration URSSAF {{ $json.dans_jours === 0 ? \"AUJOURD'HUI\" : \"dans \" + $json.dans_jours + \" jours\" }}",
+        "emailType": "html",
+        "message": "<html><body><h2>📋 Échéance URSSAF du {{ $json.echeance }}</h2><p><strong>Période :</strong> {{ $json.periode_debut }} → {{ $json.periode_fin }}</p><p><strong>CA encaissé :</strong> {{ $json.ca }} € ({{ $json.nb_factures }} factures payées)</p><p><strong>Cotisations estimées ({{ $json.taux_pct }}%) : {{ $json.cotisations }} €</strong></p><p>Déclaration sur <a href=\"https://www.autoentrepreneur.urssaf.fr\">autoentrepreneur.urssaf.fr</a>. Montant indicatif : vérifiez votre taux réel (ACRE, versement libératoire…).</p></body></html>"
+      }
+    }
+  ],
+  "connections": {
+    "Tous les jours 7h30": {
+      "main": [
+        [
+          {
+            "node": "Prochaine échéance URSSAF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prochaine échéance URSSAF": {
+      "main": [
+        [
+          {
+            "node": "CA encaissé de la période",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CA encaissé de la période": {
+      "main": [
+        [
+          {
+            "node": "Calculer les cotisations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculer les cotisations": {
+      "main": [
+        [
+          {
+            "node": "Email de rappel URSSAF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "d1d2d3d4-1303-1303-1303-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-freelance",
+      "name": "freelance"
+    },
+    {
+      "id": "tag-administratif",
+      "name": "administratif"
+    }
+  ]
+}

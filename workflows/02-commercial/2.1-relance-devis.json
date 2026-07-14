@@ -25,7 +25,7 @@
       "id": "a1b2c3d4-0003-0003-0003-000000000002",
       "name": "Récupérer devis en attente",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         500,
         300
@@ -99,10 +99,10 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $json.email }}",
         "subject": "Votre devis n°{{ $json.numero }} – Avez-vous eu le temps d'y jeter un œil ?",
         "emailType": "html",
-        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Je me permets de revenir vers vous concernant le devis n°<strong>{{ $json.numero }}</strong> d'un montant de <strong>{{ $json.montant_ttc }}€ TTC</strong> que nous vous avons transmis il y a quelques jours.</p><p>Avez-vous eu l'occasion de l'étudier ? N'hésitez pas à me faire part de vos questions ou ajustements éventuels.</p><p>Ce devis est valable jusqu'au {{ $json.date_validite }}.</p><p>Cordialement,<br>L'équipe Nexum Flow</p></body></html>"
+        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Je me permets de revenir vers vous concernant le devis n°<strong>{{ $json.numero }}</strong> d'un montant de <strong>{{ $json.montant_ttc }}€ TTC</strong> que nous vous avons transmis il y a quelques jours.</p><p>Avez-vous eu l'occasion de l'étudier ? N'hésitez pas à me faire part de vos questions ou ajustements éventuels.</p><p>Ce devis est valable jusqu'au {{ $json.date_validite }}.</p><p>Cordialement,<br>L'équipe Nexum Flow</p></body></html>",
+        "sendTo": "={{ $json.email }}"
       }
     },
     {
@@ -116,17 +116,17 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $json.email }}",
         "subject": "Dernier rappel – Devis n°{{ $json.numero }} expire bientôt",
         "emailType": "html",
-        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Je vous contacte une dernière fois au sujet du devis n°<strong>{{ $json.numero }}</strong>. Il arrive à expiration le <strong>{{ $json.date_validite }}</strong>.</p><p>Si ce projet n'est plus d'actualité, pas de souci — je clôture simplement le dossier. Sinon, je suis disponible pour en discuter.</p><p>Cordialement,<br>L'équipe Nexum Flow</p></body></html>"
+        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Je vous contacte une dernière fois au sujet du devis n°<strong>{{ $json.numero }}</strong>. Il arrive à expiration le <strong>{{ $json.date_validite }}</strong>.</p><p>Si ce projet n'est plus d'actualité, pas de souci — je clôture simplement le dossier. Sinon, je suis disponible pour en discuter.</p><p>Cordialement,<br>L'équipe Nexum Flow</p></body></html>",
+        "sendTo": "={{ $json.email }}"
       }
     },
     {
       "id": "a1b2c3d4-0003-0003-0003-000000000007",
       "name": "Mettre à jour compteur relances",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         1500,
         200
@@ -134,10 +134,9 @@
       "parameters": {
         "operation": "executeQuery",
         "query": "UPDATE devis SET nb_relances = nb_relances + 1, derniere_relance = NOW() WHERE id = $1",
-        "additionalFields": {
-          "queryParams": "={{ [$json.id] }}"
-        },
-        "options": {}
+        "options": {
+          "queryReplacement": "={{ [$json.id] }}"
+        }
       }
     },
     {
@@ -150,10 +149,21 @@
         200
       ],
       "parameters": {
-        "operation": "sendMessage",
-        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
-        "channelId": "={{ $env.DISCORD_COMMERCIAL_CHANNEL_ID }}",
-        "content": "📧 Relance n°{{ $json.nb_relances + 1 }} envoyée\n**Client :** {{ $json.prenom }} {{ $json.nom }} ({{ $json.entreprise }})\n**Devis :** n°{{ $json.numero }} – {{ $json.montant_ttc }}€ TTC\n**Expire le :** {{ $json.date_validite }}"
+        "resource": "message",
+        "operation": "send",
+        "guildId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_GUILD_ID }}"
+        },
+        "sendTo": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_COMMERCIAL_CHANNEL_ID }}"
+        },
+        "content": "📧 Relance n°{{ $json.nb_relances + 1 }} envoyée\n**Client :** {{ $json.prenom }} {{ $json.nom }} ({{ $json.entreprise }})\n**Devis :** n°{{ $json.numero }} – {{ $json.montant_ttc }}€ TTC\n**Expire le :** {{ $json.date_validite }}",
+        "options": {}
       }
     }
   ],

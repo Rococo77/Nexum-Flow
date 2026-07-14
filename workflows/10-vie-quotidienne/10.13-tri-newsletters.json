@@ -1,0 +1,219 @@
+{
+  "name": "10.13 – Tri des newsletters",
+  "nodes": [
+    {
+      "id": "d1d2d3d4-1013-1013-1013-000000000001",
+      "name": "Samedi 10h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * 6"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1013-1013-1013-000000000002",
+      "name": "Newsletters du mois",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 100,
+        "simple": true,
+        "filters": {
+          "q": "unsubscribe newer_than:30d"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1013-1013-1013-000000000003",
+      "name": "Regrouper par expéditeur",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const parExpediteur = {};\nfor (const item of $input.all()) {\n  const m = item.json;\n  const exp = (m.From || 'inconnu').replace(/\\s*<[^>]*>/, '').trim();\n  if (!parExpediteur[exp]) parExpediteur[exp] = { expediteur: exp, nb: 0, sujets: [] };\n  parExpediteur[exp].nb += 1;\n  if (parExpediteur[exp].sujets.length < 3) parExpediteur[exp].sujets.push(m.Subject || '');\n}\nconst liste = Object.values(parExpediteur).sort((a, b) => b.nb - a.nb);\nif (!liste.length) return [{ json: { vide: true, liste: [], total: 0 } }];\nreturn [{ json: { vide: false, liste, total: liste.reduce((s, e) => s + e.nb, 0) } }];"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1013-1013-1013-000000000004",
+      "name": "Des newsletters ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-0004",
+              "leftValue": "={{ $json.vide }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1013-1013-1013-000000000005",
+      "name": "Analyse de désabonnement (IA)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1250,
+        200
+      ],
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-large-latest"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu aides à faire le tri dans une boîte mail. À partir de la liste des expéditeurs de newsletters du mois (avec volume et exemples de sujets), rédige un court bilan HTML (sans balises html/body) : les expéditeurs les plus bruyants, ceux qui semblent peu utiles (promotions répétitives), et une liste 'à désabonner en priorité' avec une raison d'une ligne chacune. Rappelle que le désabonnement se fait via le lien en bas de chaque email. Ton : direct et pratique."
+            },
+            {
+              "role": "user",
+              "content": "Newsletters reçues ces 30 derniers jours ({{ $json.total }} emails) :\n{{ $json.liste.map(e => `- ${e.expediteur} (${e.nb} emails) : ${e.sujets.join(' | ')}`).join('\\n') }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 900
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1013-1013-1013-000000000006",
+      "name": "Envoyer le bilan",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        200
+      ],
+      "parameters": {
+        "operation": "send",
+        "sendTo": "={{ $env.EMAIL_PERSO }}",
+        "subject": "📬 Tri des newsletters – {{ $now.format(\"dd/MM/yyyy\") }}",
+        "emailType": "html",
+        "message": "<html><body><h2>📬 Bilan mensuel des newsletters</h2>{{ $json.message.content }}</body></html>"
+      }
+    }
+  ],
+  "connections": {
+    "Samedi 10h": {
+      "main": [
+        [
+          {
+            "node": "Newsletters du mois",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Newsletters du mois": {
+      "main": [
+        [
+          {
+            "node": "Regrouper par expéditeur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Regrouper par expéditeur": {
+      "main": [
+        [
+          {
+            "node": "Des newsletters ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Des newsletters ?": {
+      "main": [
+        [
+          {
+            "node": "Analyse de désabonnement (IA)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Analyse de désabonnement (IA)": {
+      "main": [
+        [
+          {
+            "node": "Envoyer le bilan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "d1d2d3d4-1013-1013-1013-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-vie-quotidienne",
+      "name": "vie-quotidienne"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    }
+  ]
+}

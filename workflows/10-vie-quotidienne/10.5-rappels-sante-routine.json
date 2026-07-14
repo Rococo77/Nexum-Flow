@@ -6,15 +6,33 @@
       "name": "Déclencheur horaire",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.1,
-      "position": [100, 300],
+      "position": [
+        100,
+        300
+      ],
       "parameters": {
         "rule": {
           "interval": [
-            { "field": "cronExpression", "expression": "0 8 * * *" },
-            { "field": "cronExpression", "expression": "0 12 * * *" },
-            { "field": "cronExpression", "expression": "30 14 * * *" },
-            { "field": "cronExpression", "expression": "0 19 * * *" },
-            { "field": "cronExpression", "expression": "0 21 * * 0" }
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 12 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "30 14 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 19 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "0 21 * * 0"
+            }
           ]
         }
       }
@@ -24,16 +42,28 @@
       "name": "Identifier le moment",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
-      "position": [300, 300],
+      "position": [
+        300,
+        300
+      ],
       "parameters": {
         "mode": "rules",
         "rules": {
           "values": [
             {
               "conditions": {
-                "options": { "caseSensitive": true },
+                "options": {
+                  "caseSensitive": true
+                },
                 "conditions": [
-                  { "leftValue": "={{ new Date().getHours() }}", "rightValue": 8, "operator": { "type": "number", "operation": "equals" } }
+                  {
+                    "leftValue": "={{ new Date().getHours() }}",
+                    "rightValue": 8,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
                 ],
                 "combinator": "and"
               },
@@ -41,9 +71,18 @@
             },
             {
               "conditions": {
-                "options": { "caseSensitive": true },
+                "options": {
+                  "caseSensitive": true
+                },
                 "conditions": [
-                  { "leftValue": "={{ new Date().getHours() }}", "rightValue": 12, "operator": { "type": "number", "operation": "equals" } }
+                  {
+                    "leftValue": "={{ new Date().getHours() }}",
+                    "rightValue": 12,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
                 ],
                 "combinator": "and"
               },
@@ -51,9 +90,18 @@
             },
             {
               "conditions": {
-                "options": { "caseSensitive": true },
+                "options": {
+                  "caseSensitive": true
+                },
                 "conditions": [
-                  { "leftValue": "={{ new Date().getHours() }}", "rightValue": 14, "operator": { "type": "number", "operation": "equals" } }
+                  {
+                    "leftValue": "={{ new Date().getHours() }}",
+                    "rightValue": 14,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
                 ],
                 "combinator": "and"
               },
@@ -61,9 +109,18 @@
             },
             {
               "conditions": {
-                "options": { "caseSensitive": true },
+                "options": {
+                  "caseSensitive": true
+                },
                 "conditions": [
-                  { "leftValue": "={{ new Date().getHours() }}", "rightValue": 19, "operator": { "type": "number", "operation": "equals" } }
+                  {
+                    "leftValue": "={{ new Date().getHours() }}",
+                    "rightValue": 19,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
                 ],
                 "combinator": "and"
               },
@@ -71,9 +128,18 @@
             },
             {
               "conditions": {
-                "options": { "caseSensitive": true },
+                "options": {
+                  "caseSensitive": true
+                },
                 "conditions": [
-                  { "leftValue": "={{ new Date().getHours() }}", "rightValue": 21, "operator": { "type": "number", "operation": "equals" } }
+                  {
+                    "leftValue": "={{ new Date().getHours() }}",
+                    "rightValue": 21,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
                 ],
                 "combinator": "and"
               },
@@ -87,22 +153,36 @@
     {
       "id": "b1b2c3d4-1005-1005-1005-000000000003",
       "name": "Message matin",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
-      "position": [520, 100],
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        520,
+        100
+      ],
       "parameters": {
+        "resource": "text",
         "operation": "message",
-        "modelId": "mistral-small-latest",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-small-latest"
+        },
         "messages": {
           "values": [
             {
               "role": "system",
               "content": "Tu es un coach bienveillant. Génère un message de démarrage matinal HTML motivant (50 mots max). Inclus : une salutation, 3 habitudes du matin (eau, étirements, intention du jour), et une citation courte."
             },
-            { "role": "user", "content": "=Génère le message pour ce {{ new Date().toLocaleDateString('fr-FR', {weekday:'long'}) }}." }
+            {
+              "role": "user",
+              "content": "=Génère le message pour ce {{ new Date().toLocaleDateString('fr-FR', {weekday:'long'}) }}."
+            }
           ]
         },
-        "options": { "temperature": 0.8, "maxTokens": 200 }
+        "options": {
+          "temperature": 0.8,
+          "maxTokens": 200
+        }
       }
     },
     {
@@ -110,7 +190,10 @@
       "name": "Message midi",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [520, 240],
+      "position": [
+        520,
+        240
+      ],
       "parameters": {
         "mode": "manual",
         "assignments": {
@@ -120,7 +203,11 @@
               "value": "<p>💧 <strong>Rappel hydratation :</strong> avez-vous bu suffisamment d'eau ce matin ? Visez 250ml maintenant.<br>🚶 Après le repas, 10 minutes de marche font une grande différence.</p>",
               "type": "string"
             },
-            { "name": "sujet", "value": "💧 Rappel de midi – hydratation & pause", "type": "string" }
+            {
+              "name": "sujet",
+              "value": "💧 Rappel de midi – hydratation & pause",
+              "type": "string"
+            }
           ]
         }
       }
@@ -130,7 +217,10 @@
       "name": "Message après-midi",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [520, 380],
+      "position": [
+        520,
+        380
+      ],
       "parameters": {
         "mode": "manual",
         "assignments": {
@@ -140,7 +230,11 @@
               "value": "<p>☕ <strong>Coup de mou de l'après-midi ?</strong><br>Plutôt qu'un café supplémentaire, essayez :<br>• 5 minutes de respiration profonde<br>• Un verre d'eau froide<br>• 2 minutes d'étirement cervicaux<br><br>📋 Faites le point sur vos 3 priorités du jour : sont-elles avancées ?</p>",
               "type": "string"
             },
-            { "name": "sujet", "value": "☕ Pause 14h30 – rechargez les batteries", "type": "string" }
+            {
+              "name": "sujet",
+              "value": "☕ Pause 14h30 – rechargez les batteries",
+              "type": "string"
+            }
           ]
         }
       }
@@ -148,43 +242,71 @@
     {
       "id": "b1b2c3d4-1005-1005-1005-000000000006",
       "name": "Message soir",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
-      "position": [520, 520],
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        520,
+        520
+      ],
       "parameters": {
+        "resource": "text",
         "operation": "message",
-        "modelId": "mistral-small-latest",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-small-latest"
+        },
         "messages": {
           "values": [
             {
               "role": "system",
               "content": "Tu es un coach bien-être. Génère un message de soirée HTML (50 mots max) pour déconnecter du travail. Inclus : félicitations pour la journée, rituel de déconnexion (écrans off à 21h, lecture, marche), préparation du lendemain (préparer ses affaires, noter 3 tâches)."
             },
-            { "role": "user", "content": "=Génère le message du soir pour ce {{ new Date().toLocaleDateString('fr-FR', {weekday:'long'}) }}." }
+            {
+              "role": "user",
+              "content": "=Génère le message du soir pour ce {{ new Date().toLocaleDateString('fr-FR', {weekday:'long'}) }}."
+            }
           ]
         },
-        "options": { "temperature": 0.7, "maxTokens": 200 }
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 200
+        }
       }
     },
     {
       "id": "b1b2c3d4-1005-1005-1005-000000000007",
       "name": "Bilan hebdomadaire",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
-      "position": [520, 660],
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        520,
+        660
+      ],
       "parameters": {
+        "resource": "text",
         "operation": "message",
-        "modelId": "mistral-small-latest",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-small-latest"
+        },
         "messages": {
           "values": [
             {
               "role": "system",
               "content": "Tu es un coach de vie. Génère un bilan de fin de semaine HTML (100 mots max). Encourage la réflexion sur : victoires de la semaine, leçons apprises, objectif de la semaine prochaine, activité de ressourcement pour le weekend."
             },
-            { "role": "user", "content": "Génère le bilan du dimanche soir." }
+            {
+              "role": "user",
+              "content": "Génère le bilan du dimanche soir."
+            }
           ]
         },
-        "options": { "temperature": 0.7, "maxTokens": 300 }
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 300
+        }
       }
     },
     {
@@ -192,13 +314,16 @@
       "name": "Email matin",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [740, 100],
+      "position": [
+        740,
+        100
+      ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $env.EMAIL_PERSO }}",
         "subject": "=🌅 Bonjour ! Démarrage {{ new Date().toLocaleDateString('fr-FR', {weekday:'long'}) }}",
         "emailType": "html",
-        "message": "={{ $json.message.content }}"
+        "message": "={{ $json.message.content }}",
+        "sendTo": "={{ $env.EMAIL_PERSO }}"
       }
     },
     {
@@ -206,13 +331,16 @@
       "name": "Email midi",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [740, 240],
+      "position": [
+        740,
+        240
+      ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $env.EMAIL_PERSO }}",
         "subject": "={{ $json.sujet }}",
         "emailType": "html",
-        "message": "={{ $json.message }}"
+        "message": "={{ $json.message }}",
+        "sendTo": "={{ $env.EMAIL_PERSO }}"
       }
     },
     {
@@ -220,13 +348,16 @@
       "name": "Email après-midi",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [740, 380],
+      "position": [
+        740,
+        380
+      ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $env.EMAIL_PERSO }}",
         "subject": "={{ $json.sujet }}",
         "emailType": "html",
-        "message": "={{ $json.message }}"
+        "message": "={{ $json.message }}",
+        "sendTo": "={{ $env.EMAIL_PERSO }}"
       }
     },
     {
@@ -234,13 +365,16 @@
       "name": "Email soir",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [740, 520],
+      "position": [
+        740,
+        520
+      ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $env.EMAIL_PERSO }}",
         "subject": "=🌙 Bonne soirée – déconnexion et repos",
         "emailType": "html",
-        "message": "={{ $json.message.content }}"
+        "message": "={{ $json.message.content }}",
+        "sendTo": "={{ $env.EMAIL_PERSO }}"
       }
     },
     {
@@ -248,43 +382,124 @@
       "name": "Email bilan",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [740, 660],
+      "position": [
+        740,
+        660
+      ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $env.EMAIL_PERSO }}",
         "subject": "=📊 Bilan de la semaine – {{ new Date().toLocaleDateString('fr-FR') }}",
         "emailType": "html",
-        "message": "={{ $json.message.content }}"
+        "message": "={{ $json.message.content }}",
+        "sendTo": "={{ $env.EMAIL_PERSO }}"
       }
     }
   ],
   "connections": {
     "Déclencheur horaire": {
-      "main": [[{ "node": "Identifier le moment", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Identifier le moment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Identifier le moment": {
       "main": [
-        [{ "node": "Message matin", "type": "main", "index": 0 }],
-        [{ "node": "Message midi", "type": "main", "index": 0 }],
-        [{ "node": "Message après-midi", "type": "main", "index": 0 }],
-        [{ "node": "Message soir", "type": "main", "index": 0 }],
-        [{ "node": "Bilan hebdomadaire", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Message matin",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Message midi",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Message après-midi",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Message soir",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Bilan hebdomadaire",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Message matin": {
-      "main": [[{ "node": "Email matin", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Email matin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Message midi": {
-      "main": [[{ "node": "Email midi", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Email midi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Message après-midi": {
-      "main": [[{ "node": "Email après-midi", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Email après-midi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Message soir": {
-      "main": [[{ "node": "Email soir", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Email soir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Bilan hebdomadaire": {
-      "main": [[{ "node": "Email bilan", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Email bilan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -293,9 +508,17 @@
     "saveManualExecutions": true
   },
   "versionId": "b1b2c3d4-1005-1005-1005-000000000099",
-  "meta": { "instanceId": "nexum-flow" },
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
   "tags": [
-    { "id": "tag-vie-quotidienne", "name": "vie-quotidienne" },
-    { "id": "tag-sante", "name": "sante" }
+    {
+      "id": "tag-vie-quotidienne",
+      "name": "vie-quotidienne"
+    },
+    {
+      "id": "tag-sante",
+      "name": "sante"
+    }
   ]
 }

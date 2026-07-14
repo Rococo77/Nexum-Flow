@@ -1,0 +1,395 @@
+{
+  "name": "10.17 – Bibliothèque lecture & watchlist",
+  "nodes": [
+    {
+      "id": "d1d2d3d4-1017-1017-1017-000000000001",
+      "name": "Webhook Watchlist",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        150
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "watchlist",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "d1d2d3d4-1017-1017-1017-000000000002",
+      "name": "Valider l’entrée",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        150
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const b = $input.item.json.body || $input.item.json;\nconst titre = String(b.titre || '').trim().substring(0, 255);\nif (!titre) throw new Error('titre requis');\nconst types = ['livre', 'film', 'serie', 'autre'];\nconst statuts = ['a_decouvrir', 'en_cours', 'termine'];\nreturn {\n  titre,\n  type: types.includes(b.type) ? b.type : 'autre',\n  statut: statuts.includes(b.statut) ? b.statut : 'a_decouvrir',\n  note: b.note != null && !isNaN(Number(b.note)) ? Math.min(5, Math.max(0, Number(b.note))) : null,\n  commentaire: String(b.commentaire || '').substring(0, 1000),\n  auteur: null, annee: null\n};"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1017-1017-1017-000000000003",
+      "name": "C’est un livre ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        750,
+        150
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond-0003",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "livre",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1017-1017-1017-000000000004",
+      "name": "Chercher sur Open Library",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        50
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://openlibrary.org/search.json?limit=1&title={{ encodeURIComponent($json.titre) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "id": "d1d2d3d4-1017-1017-1017-000000000005",
+      "name": "Enrichir le livre",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        50
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const base = $('Valider l’entrée').item.json;\nconst doc = (($input.item.json.docs || [])[0]) || {};\nreturn {\n  ...base,\n  auteur: (doc.author_name || [])[0] || null,\n  annee: doc.first_publish_year || null\n};"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1017-1017-1017-000000000006",
+      "name": "Enregistrer",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1500,
+        150
+      ],
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "name",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "watchlist_perso"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "titre": "={{ $json.titre }}",
+            "type": "={{ $json.type }}",
+            "statut": "={{ $json.statut }}",
+            "note": "={{ $json.note }}",
+            "commentaire": "={{ $json.commentaire }}",
+            "auteur": "={{ $json.auteur }}",
+            "annee": "={{ $json.annee }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d1d2d3d4-1017-1017-1017-000000000007",
+      "name": "Réponse webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1750,
+        150
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, titre: $('Valider l’entrée').item.json.titre }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1017-1017-1017-000000000008",
+      "name": "Le 1er du mois à 19h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        500
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 19 1 * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1017-1017-1017-000000000009",
+      "name": "Activité du mois",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        500,
+        500
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT titre, type, statut, note, auteur, annee, commentaire\nFROM watchlist_perso\nWHERE updated_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month'\nORDER BY updated_at DESC LIMIT 50",
+        "options": {}
+      }
+    },
+    {
+      "id": "d1d2d3d4-1017-1017-1017-000000000010",
+      "name": "Préparer le bilan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        500
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json).filter(j => j.titre);\nif (!items.length) return [];\nconst termines = items.filter(j => j.statut === 'termine');\nconst enCours = items.filter(j => j.statut !== 'termine');\nconst fmt = j => `- ${j.titre}${j.auteur ? ' (' + j.auteur + ')' : ''} [${j.type}]${j.note != null ? ' – note ' + j.note + '/5' : ''}`;\nreturn [{ json: {\n  termines: termines.map(fmt).join('\\n') || 'rien de terminé',\n  en_cours: enCours.map(fmt).join('\\n') || 'rien en cours',\n  nb: items.length\n} }];"
+      }
+    },
+    {
+      "id": "d1d2d3d4-1017-1017-1017-000000000011",
+      "name": "Bilan & recommandations (IA)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1000,
+        500
+      ],
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-large-latest"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Tu es un ami cultivé qui fait un point lecture/visionnage mensuel. À partir de la liste (terminés + en cours, avec notes éventuelles), rédige en HTML léger : un mini bilan du mois, puis 3 recommandations personnalisées (livres, films ou séries) basées sur les goûts visibles, avec une ligne d'explication chacune."
+            },
+            {
+              "role": "user",
+              "content": "Terminés ce mois-ci :\n{{ $json.termines }}\n\nEn cours / à découvrir :\n{{ $json.en_cours }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 800
+        }
+      }
+    },
+    {
+      "id": "d1d2d3d4-1017-1017-1017-000000000012",
+      "name": "Email bilan culture",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        500
+      ],
+      "parameters": {
+        "operation": "send",
+        "sendTo": "={{ $env.EMAIL_PERSO }}",
+        "subject": "📚 Bilan lecture & watchlist du mois",
+        "emailType": "html",
+        "message": "<html><body>{{ $json.message.content }}</body></html>"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Watchlist": {
+      "main": [
+        [
+          {
+            "node": "Valider l’entrée",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valider l’entrée": {
+      "main": [
+        [
+          {
+            "node": "C’est un livre ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chercher sur Open Library": {
+      "main": [
+        [
+          {
+            "node": "Enrichir le livre",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrichir le livre": {
+      "main": [
+        [
+          {
+            "node": "Enregistrer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enregistrer": {
+      "main": [
+        [
+          {
+            "node": "Réponse webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Le 1er du mois à 19h": {
+      "main": [
+        [
+          {
+            "node": "Activité du mois",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Activité du mois": {
+      "main": [
+        [
+          {
+            "node": "Préparer le bilan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer le bilan": {
+      "main": [
+        [
+          {
+            "node": "Bilan & recommandations (IA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bilan & recommandations (IA)": {
+      "main": [
+        [
+          {
+            "node": "Email bilan culture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "C’est un livre ?": {
+      "main": [
+        [
+          {
+            "node": "Chercher sur Open Library",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enregistrer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "d1d2d3d4-1017-1017-1017-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-vie-quotidienne",
+      "name": "vie-quotidienne"
+    },
+    {
+      "id": "tag-ia",
+      "name": "ia"
+    }
+  ]
+}

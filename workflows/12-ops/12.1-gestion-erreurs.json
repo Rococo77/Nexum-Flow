@@ -1,0 +1,148 @@
+{
+  "name": "12.1 – Gestion centralisée des erreurs",
+  "nodes": [
+    {
+      "id": "c1c2c3c4-1201-1201-1201-000000000001",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "c1c2c3c4-1201-1201-1201-000000000002",
+      "name": "Préparer le rapport",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const e = $input.item.json;\nconst exec = e.execution || {};\nconst err = exec.error || (e.trigger || {}).error || {};\nreturn {\n  workflow_id: String((e.workflow || {}).id || ''),\n  workflow_name: (e.workflow || {}).name || 'inconnu',\n  execution_id: String(exec.id || ''),\n  execution_url: exec.url || '',\n  noeud: exec.lastNodeExecuted || '',\n  message: String(err.message || 'Erreur inconnue').substring(0, 1000),\n  mode: exec.mode || (e.trigger ? 'trigger' : ''),\n  survenu_le: new Date().toISOString()\n};"
+      }
+    },
+    {
+      "id": "c1c2c3c4-1201-1201-1201-000000000003",
+      "name": "Historiser l’erreur",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        750,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "__rl": true,
+          "mode": "name",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "workflow_errors"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "workflow_id": "={{ $json.workflow_id }}",
+            "workflow_name": "={{ $json.workflow_name }}",
+            "execution_id": "={{ $json.execution_id }}",
+            "execution_url": "={{ $json.execution_url }}",
+            "noeud": "={{ $json.noeud }}",
+            "message": "={{ $json.message }}",
+            "mode": "={{ $json.mode }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c1c2c3c4-1201-1201-1201-000000000004",
+      "name": "Alerter les admins",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "guildId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_GUILD_ID }}"
+        },
+        "sendTo": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_ADMIN_CHANNEL_ID }}"
+        },
+        "content": "🚨 **ERREUR WORKFLOW** – {{ $('Préparer le rapport').item.json.workflow_name }}\n**Nœud :** {{ $('Préparer le rapport').item.json.noeud || 'inconnu' }}\n**Message :** {{ $('Préparer le rapport').item.json.message }}\n**Mode :** {{ $('Préparer le rapport').item.json.mode }}\n🔗 {{ $('Préparer le rapport').item.json.execution_url || 'exécution non tracée' }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Préparer le rapport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer le rapport": {
+      "main": [
+        [
+          {
+            "node": "Historiser l’erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Historiser l’erreur": {
+      "main": [
+        [
+          {
+            "node": "Alerter les admins",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "c1c2c3c4-1201-1201-1201-000000000099",
+  "meta": {
+    "instanceId": "nexum-flow"
+  },
+  "tags": [
+    {
+      "id": "tag-ops",
+      "name": "ops"
+    }
+  ]
+}

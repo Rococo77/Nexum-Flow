@@ -30,11 +30,24 @@ import_workflow() {
   # Utilise python3 avec stdin pour éviter l'injection via le nom de fichier
   name=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('name','?'))" < "$file" 2>/dev/null || echo "$file")
 
+  # L'API publique n8n refuse les propriétés additionnelles (active, tags,
+  # versionId, meta…) : on ne poste que les champs acceptés.
+  payload=$(python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+allowed = {'name', 'nodes', 'connections', 'settings', 'staticData'}
+settings_allowed = {'saveExecutionProgress', 'saveManualExecutions', 'saveDataErrorExecution',
+                    'saveDataSuccessExecution', 'executionTimeout', 'errorWorkflow',
+                    'timezone', 'executionOrder'}
+d['settings'] = {k: v for k, v in d.get('settings', {}).items() if k in settings_allowed}
+print(json.dumps({k: v for k, v in d.items() if k in allowed}))
+" < "$file")
+
   response=$(curl -s -w "\n%{http_code}" \
     -X POST "$N8N_URL/api/v1/workflows" \
     -H "X-N8N-API-KEY: $N8N_API_KEY" \
     -H "Content-Type: application/json" \
-    -d @"$file")
+    --data-binary "$payload")
 
   http_code=$(echo "$response" | tail -n1)
   body=$(echo "$response" | head -n-1)

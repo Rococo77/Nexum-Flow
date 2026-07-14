@@ -21,18 +21,39 @@
       "id": "a1b2c3d4-0007-0007-0007-000000000002",
       "name": "Enregistrer RDV en base",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         500,
         300
       ],
       "parameters": {
         "operation": "insert",
-        "schema": "public",
-        "table": "rendez_vous",
-        "columns": "client_id, titre, description, date_debut, date_fin, lieu, type",
-        "options": {
-          "returnFields": "id, titre, date_debut, date_fin"
+        "schema": {
+          "__rl": true,
+          "mode": "name",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "rendez_vous"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "client_id": "={{ $json.client_id }}",
+            "titre": "={{ $json.titre }}",
+            "description": "={{ $json.description }}",
+            "date_debut": "={{ $json.date_debut }}",
+            "date_fin": "={{ $json.date_fin }}",
+            "lieu": "={{ $json.lieu }}",
+            "type": "={{ $json.type }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         }
       }
     },
@@ -47,28 +68,30 @@
       ],
       "parameters": {
         "operation": "create",
-        "calendarId": "={{ $env.GOOGLE_CALENDAR_ID }}",
         "start": "={{ $json.date_debut }}",
         "end": "={{ $json.date_fin }}",
         "additionalFields": {
           "summary": "={{ $json.titre }}",
           "description": "={{ $json.description }}",
-          "location": "={{ $json.lieu }}",
-          "reminders": {
-            "useDefault": false,
-            "remindersUi": {
-              "reminderValues": [
-                {
-                  "method": "email",
-                  "minutes": 1440
-                },
-                {
-                  "method": "popup",
-                  "minutes": 60
-                }
-              ]
+          "location": "={{ $json.lieu }}"
+        },
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_CALENDAR_ID }}"
+        },
+        "useDefaultReminders": false,
+        "remindersUi": {
+          "remindersValues": [
+            {
+              "method": "email",
+              "minutes": 1440
+            },
+            {
+              "method": "popup",
+              "minutes": 60
             }
-          }
+          ]
         }
       }
     },
@@ -76,7 +99,7 @@
       "id": "a1b2c3d4-0007-0007-0007-000000000004",
       "name": "Enregistrer ID Google Calendar",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         1000,
         200
@@ -84,10 +107,9 @@
       "parameters": {
         "operation": "executeQuery",
         "query": "UPDATE rendez_vous SET google_event_id = $1 WHERE id = $2",
-        "additionalFields": {
-          "queryParams": "={{ [$json.id, $('Enregistrer RDV en base').item.json.id] }}"
-        },
-        "options": {}
+        "options": {
+          "queryReplacement": "={{ [$json.id, $('Enregistrer RDV en base').item.json.id] }}"
+        }
       }
     },
     {
@@ -143,22 +165,31 @@
       "id": "a1b2c3d4-0007-0007-0007-000000000007",
       "name": "Récupérer infos client",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         1500,
         300
       ],
       "parameters": {
         "operation": "select",
-        "schema": "public",
-        "table": "clients",
+        "schema": {
+          "__rl": true,
+          "mode": "name",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "clients"
+        },
         "returnAll": false,
         "limit": 1,
         "where": {
           "values": [
             {
               "column": "id",
-              "value": "={{ $('Webhook Nouveau RDV').item.json.client_id }}"
+              "value": "={{ $('Webhook Nouveau RDV').item.json.client_id }}",
+              "condition": "equals"
             }
           ]
         }
@@ -175,10 +206,10 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $json.email }}",
         "subject": "Rappel : Rendez-vous demain – {{ $('Webhook Nouveau RDV').item.json.titre }}",
         "emailType": "html",
-        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Je vous rappelle notre rendez-vous de demain :</p><ul><li><strong>Objet :</strong> {{ $('Webhook Nouveau RDV').item.json.titre }}</li><li><strong>Date :</strong> {{ new Date($('Webhook Nouveau RDV').item.json.date_debut).toLocaleString('fr-FR') }}</li><li><strong>Lieu :</strong> {{ $('Webhook Nouveau RDV').item.json.lieu }}</li></ul><p>À bientôt,<br>L'équipe Nexum Flow</p></body></html>"
+        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Je vous rappelle notre rendez-vous de demain :</p><ul><li><strong>Objet :</strong> {{ $('Webhook Nouveau RDV').item.json.titre }}</li><li><strong>Date :</strong> {{ new Date($('Webhook Nouveau RDV').item.json.date_debut).toLocaleString('fr-FR') }}</li><li><strong>Lieu :</strong> {{ $('Webhook Nouveau RDV').item.json.lieu }}</li></ul><p>À bientôt,<br>L'équipe Nexum Flow</p></body></html>",
+        "sendTo": "={{ $json.email }}"
       }
     },
     {
