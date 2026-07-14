@@ -31,7 +31,7 @@ Bibliothèque de workflows n8n réutilisables pour agences de développement et 
 ## Stack technique
 
 ```
-n8n          – Orchestrateur de workflows
+n8n 2.12.3   – Orchestrateur de workflows (version épinglée, validée pour le catalogue)
 PostgreSQL   – Base de données principale
 Redis        – Queue d'exécution
 FastAPI      – API métier (PDF, stockage, extraction)
@@ -95,7 +95,7 @@ Dans n8n → Settings → Credentials, créez :
 | Google Drive OAuth2 | 3.1 |
 | Mistral AI (credential type "OpenAI", Base URL `https://api.mistral.ai/v1`) | 1.2, 2.2, 2.3, 4.3, 5.1, 5.3, 6.2, 6.3, 7.1, 7.2, 8.1, 8.2, 9.1, 9.3–9.6 |
 | OpenAI API (Whisper) | 5.2 |
-| Discord | Tous (notifications) |
+| Discord Bot API (token du bot + Guild ID) | Tous (notifications) |
 
 ---
 

@@ -25,7 +25,7 @@
       "id": "a1b2c3d4-0010-0010-0010-000000000002",
       "name": "Récupérer factures impayées",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         500,
         300
@@ -73,7 +73,8 @@
       ],
       "parameters": {
         "mode": "expression",
-        "output": "={{ $json.nb_relances }}"
+        "output": "={{ $json.nb_relances }}",
+        "numberOutputs": 3
       }
     },
     {
@@ -87,10 +88,10 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $json.email }}",
         "subject": "Rappel règlement – Facture n°{{ $json.numero }}",
         "emailType": "html",
-        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Sauf erreur de notre part, la facture n°<strong>{{ $json.numero }}</strong> d'un montant de <strong>{{ $json.montant_ttc }}€ TTC</strong> est arrivée à échéance le {{ new Date($json.date_echeance).toLocaleDateString('fr-FR') }}.</p><p>Pourriez-vous procéder au règlement ? En cas de difficulté, n'hésitez pas à nous contacter.</p><p>Cordialement,<br>L'équipe Nexum Flow</p></body></html>"
+        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Sauf erreur de notre part, la facture n°<strong>{{ $json.numero }}</strong> d'un montant de <strong>{{ $json.montant_ttc }}€ TTC</strong> est arrivée à échéance le {{ new Date($json.date_echeance).toLocaleDateString('fr-FR') }}.</p><p>Pourriez-vous procéder au règlement ? En cas de difficulté, n'hésitez pas à nous contacter.</p><p>Cordialement,<br>L'équipe Nexum Flow</p></body></html>",
+        "sendTo": "={{ $json.email }}"
       }
     },
     {
@@ -104,10 +105,10 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $json.email }}",
         "subject": "URGENT – Facture n°{{ $json.numero }} en attente de règlement",
         "emailType": "html",
-        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Malgré notre premier rappel, la facture n°<strong>{{ $json.numero }}</strong> ({{ $json.montant_ttc }}€ TTC) reste impayée à ce jour.</p><p>Nous vous demandons de bien vouloir procéder au règlement dans les <strong>48 heures</strong>. Sans retour de votre part, nous serons contraints de transmettre ce dossier à notre service contentieux.</p><p>Pour régler en ligne : <a href=\"https://{{ $env.N8N_HOST }}/paiement/{{ $json.id }}\">Cliquer ici</a></p></body></html>"
+        "message": "<html><body><p>Bonjour {{ $json.prenom }},</p><p>Malgré notre premier rappel, la facture n°<strong>{{ $json.numero }}</strong> ({{ $json.montant_ttc }}€ TTC) reste impayée à ce jour.</p><p>Nous vous demandons de bien vouloir procéder au règlement dans les <strong>48 heures</strong>. Sans retour de votre part, nous serons contraints de transmettre ce dossier à notre service contentieux.</p><p>Pour régler en ligne : <a href=\"https://{{ $env.N8N_HOST }}/paiement/{{ $json.id }}\">Cliquer ici</a></p></body></html>",
+        "sendTo": "={{ $json.email }}"
       }
     },
     {
@@ -120,17 +121,28 @@
         460
       ],
       "parameters": {
-        "operation": "sendMessage",
-        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
-        "channelId": "={{ $env.DISCORD_ADMIN_CHANNEL_ID }}",
-        "content": "🚨 **IMPAYÉ CRITIQUE** – Intervention manuelle requise\n**Client :** {{ $json.prenom }} {{ $json.nom }} ({{ $json.entreprise }})\n**Facture :** n°{{ $json.numero }} – {{ $json.montant_ttc }}€ TTC\n**Échéance :** {{ new Date($json.date_echeance).toLocaleDateString('fr-FR') }}\n**Retard :** {{ Math.floor((Date.now() - new Date($json.date_echeance).getTime()) / (1000*60*60*24)) }} jours\n⚠️ Considérer mise en demeure formelle ou huissier"
+        "resource": "message",
+        "operation": "send",
+        "guildId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_GUILD_ID }}"
+        },
+        "sendTo": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_ADMIN_CHANNEL_ID }}"
+        },
+        "content": "🚨 **IMPAYÉ CRITIQUE** – Intervention manuelle requise\n**Client :** {{ $json.prenom }} {{ $json.nom }} ({{ $json.entreprise }})\n**Facture :** n°{{ $json.numero }} – {{ $json.montant_ttc }}€ TTC\n**Échéance :** {{ new Date($json.date_echeance).toLocaleDateString('fr-FR') }}\n**Retard :** {{ Math.floor((Date.now() - new Date($json.date_echeance).getTime()) / (1000*60*60*24)) }} jours\n⚠️ Considérer mise en demeure formelle ou huissier",
+        "options": {}
       }
     },
     {
       "id": "a1b2c3d4-0010-0010-0010-000000000008",
       "name": "Mettre à jour statut et compteur",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         1500,
         300
@@ -138,10 +150,9 @@
       "parameters": {
         "operation": "executeQuery",
         "query": "UPDATE factures SET nb_relances = nb_relances + 1, derniere_relance = NOW(), statut = 'en_retard' WHERE id = $1",
-        "additionalFields": {
-          "queryParams": "={{ [$json.id] }}"
-        },
-        "options": {}
+        "options": {
+          "queryReplacement": "={{ [$json.id] }}"
+        }
       }
     }
   ],

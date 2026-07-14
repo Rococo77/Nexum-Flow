@@ -35,7 +35,7 @@
       "id": "b1b2c3d4-1002-1002-1002-000000000003",
       "name": "Enregistrer dépense",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         520,
         300
@@ -43,14 +43,16 @@
       "parameters": {
         "operation": "executeQuery",
         "query": "INSERT INTO depenses (montant, categorie, description, date, source) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-        "queryParams": "={{ [$json.montant, $json.categorie, $json.description, $json.date, $json.source] }}"
+        "options": {
+          "queryReplacement": "={{ [$json.montant, $json.categorie, $json.description, $json.date, $json.source] }}"
+        }
       }
     },
     {
       "id": "b1b2c3d4-1002-1002-1002-000000000004",
       "name": "Total du mois par catégorie",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         740,
         300
@@ -112,10 +114,10 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $env.EMAIL_PERSO }}",
         "subject": "⚠️ Budget mensuel dépassé – {{ $json.pct_budget }}% utilisé",
         "emailType": "html",
-        "message": "<html><body><h2>⚠️ Alerte budget</h2><p>Vous avez dépensé <strong>{{ $json.total_mois }} €</strong> ce mois-ci, soit <strong>{{ $json.pct_budget }}%</strong> de votre budget de {{ $json.budget_mensuel }} €.</p><h3>Répartition par catégorie :</h3><ul>={{ $json.totaux.map(r => `<li>${r.categorie} : ${r.total} €</li>`).join('') }}</ul><p>Dernière dépense enregistrée : <strong>{{ $json.derniere_depense.description }}</strong> – {{ $json.derniere_depense.montant }} € ({{ $json.derniere_depense.categorie }})</p></body></html>"
+        "message": "<html><body><h2>⚠️ Alerte budget</h2><p>Vous avez dépensé <strong>{{ $json.total_mois }} €</strong> ce mois-ci, soit <strong>{{ $json.pct_budget }}%</strong> de votre budget de {{ $json.budget_mensuel }} €.</p><h3>Répartition par catégorie :</h3><ul>={{ $json.totaux.map(r => `<li>${r.categorie} : ${r.total} €</li>`).join('') }}</ul><p>Dernière dépense enregistrée : <strong>{{ $json.derniere_depense.description }}</strong> – {{ $json.derniere_depense.montant }} € ({{ $json.derniere_depense.categorie }})</p></body></html>",
+        "sendTo": "={{ $env.EMAIL_PERSO }}"
       }
     },
     {
@@ -129,9 +131,10 @@
       ],
       "parameters": {
         "options": {
-          "responseCode": 200,
-          "responseData": "={{ JSON.stringify({ success: true, total_mois: $json.total_mois, pct_budget: $json.pct_budget }) }}"
-        }
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, total_mois: $json.total_mois, pct_budget: $json.pct_budget }) }}"
       }
     }
   ],

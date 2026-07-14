@@ -21,7 +21,7 @@
       "id": "a1b2c3d4-0022-0022-0022-000000000002",
       "name": "Récupérer candidat",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         470,
         400
@@ -29,10 +29,9 @@
       "parameters": {
         "operation": "executeQuery",
         "query": "SELECT id, nom, prenom, email, formation_visee FROM candidatures WHERE id = $1",
-        "additionalFields": {
-          "queryParams": "={{ [$json.body.candidature_id || $json.candidature_id] }}"
-        },
-        "options": {}
+        "options": {
+          "queryReplacement": "={{ [$json.body.candidature_id || $json.candidature_id] }}"
+        }
       }
     },
     {
@@ -86,7 +85,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.API_HOST }}/api/v1/documents/attestation/pdf",
+        "url": "=https://{{ $env.API_HOST }}/api/v1/documents/attestation/pdf",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -116,16 +115,18 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $('Préparer décision').item.json.email }}",
         "subject": "Félicitations – Vous êtes admis(e) en {{ $('Préparer décision').item.json.formation_visee }}",
         "emailType": "html",
         "message": "<html><body><p>Bonjour {{ $('Préparer décision').item.json.prenom }},</p><p>Nous avons le plaisir de vous informer que votre candidature pour la formation <strong>{{ $('Préparer décision').item.json.formation_visee }}</strong> a été <strong>retenue</strong>.</p><p>Vous trouverez ci-joint votre attestation d'admission. Les modalités d'inscription vous seront communiquées prochainement.</p><p>Félicitations et bienvenue !</p><p>Le service des admissions</p></body></html>",
-        "attachmentsUi": {
-          "attachmentsBinary": [
-            {
-              "property": "data"
-            }
-          ]
+        "sendTo": "={{ $('Préparer décision').item.json.email }}",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "data"
+              }
+            ]
+          }
         }
       }
     },
@@ -166,10 +167,10 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $('Préparer décision').item.json.email }}",
         "subject": "Convocation à un entretien d'admission – {{ $('Préparer décision').item.json.formation_visee }}",
         "emailType": "html",
-        "message": "<html><body><p>Bonjour {{ $('Préparer décision').item.json.prenom }},</p><p>Suite à l'étude de votre dossier pour <strong>{{ $('Préparer décision').item.json.formation_visee }}</strong>, nous souhaitons vous rencontrer lors d'un entretien d'admission.</p><p><strong>Date proposée : {{ $('Préparer décision').item.json.date_entretien }}</strong></p><p>Merci de confirmer votre disponibilité en répondant à cet email.</p><p>Cordialement,<br>Le service des admissions</p></body></html>"
+        "message": "<html><body><p>Bonjour {{ $('Préparer décision').item.json.prenom }},</p><p>Suite à l'étude de votre dossier pour <strong>{{ $('Préparer décision').item.json.formation_visee }}</strong>, nous souhaitons vous rencontrer lors d'un entretien d'admission.</p><p><strong>Date proposée : {{ $('Préparer décision').item.json.date_entretien }}</strong></p><p>Merci de confirmer votre disponibilité en répondant à cet email.</p><p>Cordialement,<br>Le service des admissions</p></body></html>",
+        "sendTo": "={{ $('Préparer décision').item.json.email }}"
       }
     },
     {
@@ -209,10 +210,10 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $('Préparer décision').item.json.email }}",
         "subject": "Votre candidature – {{ $('Préparer décision').item.json.formation_visee }}",
         "emailType": "html",
-        "message": "<html><body><p>Bonjour {{ $('Préparer décision').item.json.prenom }},</p><p>Votre candidature pour <strong>{{ $('Préparer décision').item.json.formation_visee }}</strong> a retenu notre attention. Vous êtes actuellement placé(e) sur <strong>liste d'attente</strong>.</p><p>Nous reviendrons vers vous dès qu'une place se libère. Merci de votre patience.</p><p>Cordialement,<br>Le service des admissions</p></body></html>"
+        "message": "<html><body><p>Bonjour {{ $('Préparer décision').item.json.prenom }},</p><p>Votre candidature pour <strong>{{ $('Préparer décision').item.json.formation_visee }}</strong> a retenu notre attention. Vous êtes actuellement placé(e) sur <strong>liste d'attente</strong>.</p><p>Nous reviendrons vers vous dès qu'une place se libère. Merci de votre patience.</p><p>Cordialement,<br>Le service des admissions</p></body></html>",
+        "sendTo": "={{ $('Préparer décision').item.json.email }}"
       }
     },
     {
@@ -226,17 +227,17 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $('Préparer décision').item.json.email }}",
         "subject": "Réponse à votre candidature – {{ $('Préparer décision').item.json.formation_visee }}",
         "emailType": "html",
-        "message": "<html><body><p>Bonjour {{ $('Préparer décision').item.json.prenom }},</p><p>Après étude attentive de votre dossier pour <strong>{{ $('Préparer décision').item.json.formation_visee }}</strong>, nous ne sommes pas en mesure de donner une suite favorable à votre candidature cette année.</p><p>Nous vous souhaitons une pleine réussite dans vos projets.</p><p>Cordialement,<br>Le service des admissions</p></body></html>"
+        "message": "<html><body><p>Bonjour {{ $('Préparer décision').item.json.prenom }},</p><p>Après étude attentive de votre dossier pour <strong>{{ $('Préparer décision').item.json.formation_visee }}</strong>, nous ne sommes pas en mesure de donner une suite favorable à votre candidature cette année.</p><p>Nous vous souhaitons une pleine réussite dans vos projets.</p><p>Cordialement,<br>Le service des admissions</p></body></html>",
+        "sendTo": "={{ $('Préparer décision').item.json.email }}"
       }
     },
     {
       "id": "a1b2c3d4-0022-0022-0022-000000000012",
       "name": "MAJ statut candidature",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         1830,
         400
@@ -244,10 +245,9 @@
       "parameters": {
         "operation": "executeQuery",
         "query": "UPDATE candidatures SET statut = $1, decision_notifiee_at = NOW() WHERE id = $2",
-        "additionalFields": {
-          "queryParams": "={{ [$('Préparer décision').item.json.decision, $('Préparer décision').item.json.id] }}"
-        },
-        "options": {}
+        "options": {
+          "queryReplacement": "={{ [$('Préparer décision').item.json.decision, $('Préparer décision').item.json.id] }}"
+        }
       }
     },
     {
@@ -261,9 +261,10 @@
       ],
       "parameters": {
         "options": {
-          "responseCode": 200,
-          "responseData": "={{ JSON.stringify({ success: true, decision: $('Préparer décision').item.json.decision }) }}"
-        }
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, decision: $('Préparer décision').item.json.decision }) }}"
       }
     }
   ],

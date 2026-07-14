@@ -21,18 +21,39 @@
       "id": "a1b2c3d4-0006-0006-0006-000000000002",
       "name": "Enregistrer client en base",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         500,
         300
       ],
       "parameters": {
         "operation": "insert",
-        "schema": "public",
-        "table": "clients",
-        "columns": "nom, prenom, email, telephone, entreprise, siret, adresse",
-        "options": {
-          "returnFields": "id, nom, entreprise"
+        "schema": {
+          "__rl": true,
+          "mode": "name",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "clients"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "nom": "={{ $json.nom }}",
+            "prenom": "={{ $json.prenom }}",
+            "email": "={{ $json.email }}",
+            "telephone": "={{ $json.telephone }}",
+            "entreprise": "={{ $json.entreprise }}",
+            "siret": "={{ $json.siret }}",
+            "adresse": "={{ $json.adresse }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         }
       }
     },
@@ -47,7 +68,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.API_HOST }}/api/v1/storage/dossier",
+        "url": "=https://{{ $env.API_HOST }}/api/v1/storage/dossier",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -88,7 +109,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.API_HOST }}/api/v1/storage/dossier",
+        "url": "=https://{{ $env.API_HOST }}/api/v1/storage/dossier",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -114,23 +135,26 @@
         420
       ],
       "parameters": {
-        "operation": "createFolder",
+        "operation": "create",
         "name": "={{ $('Enregistrer client en base').item.json.entreprise || $('Enregistrer client en base').item.json.nom }}",
         "driveId": {
+          "__rl": true,
           "mode": "list",
-          "value": "myDrive"
+          "value": "My Drive"
         },
         "folderId": {
+          "__rl": true,
           "mode": "id",
           "value": "={{ $env.GDRIVE_CLIENTS_FOLDER_ID }}"
-        }
+        },
+        "resource": "folder"
       }
     },
     {
       "id": "a1b2c3d4-0006-0006-0006-000000000007",
       "name": "Mettre à jour chemin dossier",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         1500,
         300
@@ -138,10 +162,9 @@
       "parameters": {
         "operation": "executeQuery",
         "query": "UPDATE clients SET dossier_path = $1 WHERE id = $2",
-        "additionalFields": {
-          "queryParams": "={{ ['Clients/' + $('Enregistrer client en base').item.json.entreprise.replace(/[^a-zA-Z0-9_\\- ]/g, '_'), $('Enregistrer client en base').item.json.id] }}"
-        },
-        "options": {}
+        "options": {
+          "queryReplacement": "={{ ['Clients/' + $('Enregistrer client en base').item.json.entreprise.replace(/[^a-zA-Z0-9_\\- ]/g, '_'), $('Enregistrer client en base').item.json.id] }}"
+        }
       }
     },
     {
@@ -154,10 +177,21 @@
         300
       ],
       "parameters": {
-        "operation": "sendMessage",
-        "guildId": "={{ $env.DISCORD_GUILD_ID }}",
-        "channelId": "={{ $env.DISCORD_CLIENTS_CHANNEL_ID }}",
-        "content": "📁 **Nouveau dossier client créé**\n**{{ $('Enregistrer client en base').item.json.entreprise || $('Enregistrer client en base').item.json.nom }}**\nContrats / Factures / Documents / Photos\n✅ Dossier MinIO et Google Drive créés"
+        "resource": "message",
+        "operation": "send",
+        "guildId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_GUILD_ID }}"
+        },
+        "sendTo": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.DISCORD_CLIENTS_CHANNEL_ID }}"
+        },
+        "content": "📁 **Nouveau dossier client créé**\n**{{ $('Enregistrer client en base').item.json.entreprise || $('Enregistrer client en base').item.json.nom }}**\nContrats / Factures / Documents / Photos\n✅ Dossier MinIO et Google Drive créés",
+        "options": {}
       }
     },
     {
@@ -171,9 +205,10 @@
       ],
       "parameters": {
         "options": {
-          "responseCode": 201,
-          "responseData": "={{ JSON.stringify({ success: true, client_id: $('Enregistrer client en base').item.json.id }) }}"
-        }
+          "responseCode": 201
+        },
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, client_id: $('Enregistrer client en base').item.json.id }) }}"
       }
     }
   ],

@@ -21,22 +21,31 @@
       "id": "a1b2c3d4-0004-0004-0004-000000000002",
       "name": "Récupérer infos client",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         500,
         300
       ],
       "parameters": {
         "operation": "select",
-        "schema": "public",
-        "table": "clients",
+        "schema": {
+          "__rl": true,
+          "mode": "name",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "clients"
+        },
         "returnAll": false,
         "limit": 1,
         "where": {
           "values": [
             {
               "column": "id",
-              "value": "={{ $json.client_id }}"
+              "value": "={{ $json.client_id }}",
+              "condition": "equals"
             }
           ]
         }
@@ -45,15 +54,20 @@
     {
       "id": "a1b2c3d4-0004-0004-0004-000000000003",
       "name": "Générer contenu avec IA",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
       "position": [
         750,
         300
       ],
       "parameters": {
+        "resource": "text",
         "operation": "message",
-        "modelId": "mistral-large-latest",
+        "modelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "mistral-large-latest"
+        },
         "messages": {
           "values": [
             {
@@ -97,7 +111,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.API_HOST }}/api/v1/documents/devis/pdf",
+        "url": "=https://{{ $env.API_HOST }}/api/v1/documents/devis/pdf",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -120,18 +134,39 @@
       "id": "a1b2c3d4-0004-0004-0004-000000000006",
       "name": "Enregistrer devis en base",
       "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2,
+      "typeVersion": 2.6,
       "position": [
         1500,
         300
       ],
       "parameters": {
         "operation": "insert",
-        "schema": "public",
-        "table": "devis",
-        "columns": "client_id, numero, montant_ht, montant_ttc, statut, date_validite, notes",
-        "options": {
-          "returnFields": "id, numero"
+        "schema": {
+          "__rl": true,
+          "mode": "name",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "devis"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "client_id": "={{ $json.client_id }}",
+            "numero": "={{ $json.numero }}",
+            "montant_ht": "={{ $json.montant_ht }}",
+            "montant_ttc": "={{ $json.montant_ttc }}",
+            "statut": "={{ $json.statut }}",
+            "date_validite": "={{ $json.date_validite }}",
+            "notes": "={{ $json.notes }}"
+          },
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         }
       }
     },
@@ -146,16 +181,18 @@
       ],
       "parameters": {
         "operation": "send",
-        "toList": "={{ $env.SMTP_USER }}",
         "subject": "Devis {{ $json.numero }} à valider – {{ $json.client.entreprise }}",
         "emailType": "html",
         "message": "<html><body><p>Un nouveau pré-devis a été généré automatiquement.</p><p><strong>N° :</strong> {{ $json.numero }}<br><strong>Client :</strong> {{ $json.client.entreprise }}<br><strong>Montant HT :</strong> {{ $json.montant_ht }}€<br><strong>Montant TTC :</strong> {{ $json.montant_ttc }}€<br><strong>Validité :</strong> {{ $json.date_validite }}</p><p>Veuillez valider ou ajuster ce devis avant envoi au client.</p></body></html>",
-        "attachmentsUi": {
-          "attachmentsBinary": [
-            {
-              "property": "data"
-            }
-          ]
+        "sendTo": "={{ $env.SMTP_USER }}",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "data"
+              }
+            ]
+          }
         }
       }
     },
@@ -170,9 +207,10 @@
       ],
       "parameters": {
         "options": {
-          "responseCode": 200,
-          "responseData": "={{ JSON.stringify({ success: true, numero: $json.numero, montant_ttc: $json.montant_ttc }) }}"
-        }
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, numero: $json.numero, montant_ttc: $json.montant_ttc }) }}"
       }
     }
   ],

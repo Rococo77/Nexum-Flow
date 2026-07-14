@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS clients (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     lead_id UUID REFERENCES leads(id),
     nom VARCHAR(255) NOT NULL,
+    prenom VARCHAR(255),
     email VARCHAR(255),
     telephone VARCHAR(50),
     entreprise VARCHAR(255),
